@@ -1045,3 +1045,405 @@ function showNoteModal(type) {
         if (infoText) infoText.remove();
     };
 }
+
+
+// ====== FUNGSI UNTUK MENGAMBIL PENGATURAN ======
+
+// Fungsi untuk mendapatkan pengaturan jam kerja
+function getWorkSettings() {
+    const settings = JSON.parse(localStorage.getItem('workSettings')) || {
+        workStartTime: '07:30',
+        workEndTime: '15:30',
+        lateTolerance: 0,
+        workDays: [1, 2, 3, 4, 5, 6], // Senin-Sabtu
+        autoHoliday: true
+    };
+    return settings;
+}
+
+// Fungsi untuk cek apakah hari ini hari libur
+function isTodayHoliday() {
+    const settings = getWorkSettings();
+    const today = new Date().getDay(); // 0 = Minggu, 1 = Senin, dst
+    
+    // Cek jika Minggu dan auto holiday aktif
+    if (settings.autoHoliday && today === 0) {
+        return true;
+    }
+    
+    // Cek apakah hari termasuk dalam hari kerja
+    return !settings.workDays.includes(today);
+}
+
+// ====== UPDATE ATTENDANCE FORM HTML ======
+
+function getAttendanceFormHTML() {
+    const now = new Date();
+    const settings = getWorkSettings();
+    const isHoliday = isTodayHoliday();
+    
+    if (isHoliday) {
+        const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        const dayName = dayNames[now.getDay()];
+        
+        return `
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-calendar-check"></i> Absensi Hari Ini</h3>
+                </div>
+                <div class="holiday-message">
+                    <div class="holiday-icon">
+                        <i class="fas fa-umbrella-beach"></i>
+                    </div>
+                    <h2>Hari Libur!</h2>
+                    <p>Hari ini adalah hari ${dayName}, tidak ada jadwal kerja.</p>
+                    <p>Jam kerja yang berlaku: ${settings.workStartTime} - ${settings.workEndTime}</p>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-info-circle"></i> Informasi Kehadiran</h3>
+                </div>
+                <div class="attendance-info">
+                    <div class="info-item">
+                        <i class="fas fa-clock"></i>
+                        <div>
+                            <h4>Jam Kerja</h4>
+                            <p>${settings.workStartTime} - ${settings.workEndTime}</p>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-calendar-times"></i>
+                        <div>
+                            <h4>Hari Libur</h4>
+                            <p>${settings.autoHoliday ? 'Minggu dan hari libur nasional' : 'Hanya hari libur nasional'}</p>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-hourglass-half"></i>
+                        <div>
+                            <h4>Toleransi Keterlambatan</h4>
+                            <p>${settings.lateTolerance} menit</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    return `
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-calendar-check"></i> Absensi Hari Ini</h3>
+                <span class="current-date-display">${utils.getDayName(new Date().toISOString())}, ${utils.formatDate(new Date().toISOString())}</span>
+            </div>
+            
+            <div class="attendance-status" id="attendanceStatus">
+                <!-- Status akan dimuat di sini -->
+            </div>
+            
+            <div class="attendance-form">
+                <div class="time-display" id="liveTime">00:00:00</div>
+                
+                <div class="form-group">
+                    <label>Tanggal</label>
+                    <input type="text" id="attendanceDate" value="${utils.formatDate(new Date().toISOString())}" readonly>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Status Kehadiran</label>
+                        <select id="attendanceStatusSelect" disabled>
+                            <option value="present">Masuk</option>
+                            <option value="permission">Izin</option>
+                            <option value="sick">Sakit</option>
+                            <option value="leave">Cuti</option>
+                            <option value="absence">Alfa</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Waktu Kerja</label>
+                        <input type="text" id="workTimeDisplay" value="${settings.workStartTime} - ${settings.workEndTime}" readonly>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Toleransi Keterlambatan</label>
+                    <input type="text" id="lateToleranceDisplay" value="${settings.lateTolerance} menit" readonly>
+                </div>
+                
+                <div class="attendance-buttons" id="attendanceButtons">
+                    <!-- Tombol akan dimuat di sini -->
+                </div>
+                
+                <div class="attendance-note" id="attendanceNote" style="display: none;">
+                    <div class="form-group">
+                        <label>Catatan</label>
+                        <textarea id="noteTextArea" rows="3" placeholder="Masukkan catatan..."></textarea>
+                    </div>
+                    <button class="btn btn-success btn-block" id="submitNoteBtn">
+                        <i class="fas fa-paper-plane"></i> Kirim Catatan
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-chart-line"></i> Statistik Bulan Ini</h3>
+            </div>
+            <div class="stats-grid" id="monthlyStats">
+                <!-- Statistik akan dimuat di sini -->
+            </div>
+        </div>
+    `;
+}
+
+// ====== UPDATE FUNGSI ABSENSI DENGAN PENGATURAN ======
+
+// Fungsi untuk mencatat absensi dengan pengaturan
+function recordAttendanceWithSettings(userId, type, note = '') {
+    const now = new Date();
+    const settings = getWorkSettings();
+    
+    // Cek apakah hari ini hari kerja
+    if (isTodayHoliday()) {
+        return { 
+            success: false, 
+            message: 'Hari ini adalah hari libur' 
+        };
+    }
+    
+    const attendanceRecord = {
+        id: Date.now(),
+        userId: userId,
+        date: now.toISOString().split('T')[0],
+        time: now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        type: type,
+        note: note,
+        timestamp: now.getTime()
+    };
+    
+    // Validasi untuk absen masuk
+    if (type === 'in') {
+        const workStart = new Date();
+        const [hours, minutes] = settings.workStartTime.split(':');
+        workStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        
+        // Apply late tolerance
+        const toleranceMs = settings.lateTolerance * 60 * 1000;
+        const adjustedStart = new Date(workStart.getTime() + toleranceMs);
+        
+        if (now > adjustedStart) {
+            attendanceRecord.late = true;
+            attendanceRecord.lateMinutes = Math.floor((now - workStart) / (1000 * 60));
+            attendanceRecord.lateMinutes = Math.max(0, attendanceRecord.lateMinutes - settings.lateTolerance);
+        }
+    }
+    
+    // Validasi untuk absen keluar (hanya bisa setelah jam kerja)
+    if (type === 'out') {
+        const workEnd = new Date();
+        const [hours, minutes] = settings.workEndTime.split(':');
+        workEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        
+        if (now < workEnd) {
+            return { 
+                success: false, 
+                message: `Belum waktunya absen keluar. Jam keluar: ${settings.workEndTime}` 
+            };
+        }
+    }
+    
+    // Save to attendance data
+    const attendanceData = JSON.parse(localStorage.getItem('attendanceData')) || [];
+    attendanceData.push(attendanceRecord);
+    localStorage.setItem('attendanceData', JSON.stringify(attendanceData));
+    
+    return { success: true, data: attendanceRecord };
+}
+
+// ====== UPDATE FUNGSI UPDATE ATTENDANCE BUTTONS ======
+
+function updateAttendanceButtons(hasCheckedIn, hasCheckedOut, checkInRecord) {
+    const buttonsDiv = document.getElementById('attendanceButtons');
+    if (!buttonsDiv) return;
+    
+    const settings = getWorkSettings();
+    
+    let buttonsHTML = '';
+    
+    if (!hasCheckedIn) {
+        buttonsHTML = `
+            <button class="btn btn-success" id="checkInBtn">
+                <i class="fas fa-sign-in-alt"></i> Absen Masuk
+            </button>
+            <button class="btn btn-secondary" id="requestLeaveBtn">
+                <i class="fas fa-file-medical"></i> Ajukan Izin/Sakit
+            </button>
+            <p class="info-text">Jam masuk: ${settings.workStartTime} (toleransi: ${settings.lateTolerance} menit)</p>
+        `;
+    } else if (hasCheckedIn && !hasCheckedOut) {
+        // Cek apakah sudah bisa absen keluar
+        const now = new Date();
+        const [hours, minutes] = settings.workEndTime.split(':');
+        const workEnd = new Date();
+        workEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        
+        const canCheckOut = now >= workEnd;
+        
+        buttonsHTML = `
+            <button class="btn btn-primary ${canCheckOut ? '' : 'disabled'}" id="checkOutBtn" ${!canCheckOut ? 'disabled' : ''}>
+                <i class="fas fa-sign-out-alt"></i> Absen Keluar
+            </button>
+            ${!canCheckOut ? `<p class="info-text">Absen keluar tersedia setelah pukul ${settings.workEndTime}</p>` : ''}
+        `;
+    } else {
+        buttonsHTML = `
+            <button class="btn btn-secondary disabled" disabled>
+                <i class="fas fa-check"></i> Absensi Selesai
+            </button>
+        `;
+    }
+    
+    buttonsDiv.innerHTML = buttonsHTML;
+    
+    // Add event listeners
+    if (document.getElementById('checkInBtn')) {
+        document.getElementById('checkInBtn').addEventListener('click', () => {
+            showNoteModal('checkin');
+        });
+    }
+    
+    if (document.getElementById('checkOutBtn')) {
+        document.getElementById('checkOutBtn').addEventListener('click', () => {
+            showNoteModal('checkout');
+        });
+    }
+    
+    if (document.getElementById('requestLeaveBtn')) {
+        document.getElementById('requestLeaveBtn').addEventListener('click', () => {
+            showLeaveRequestModal();
+        });
+    }
+}
+
+// ====== UPDATE FUNGSI SHOW NOTE MODAL ======
+
+function showNoteModal(type) {
+    const modal = document.getElementById('noteModal');
+    const modalTitle = document.getElementById('noteModalTitle');
+    const noteForm = document.getElementById('noteForm');
+    const submitBtn = document.getElementById('noteSubmitBtn');
+    const currentUser = auth.checkAuth();
+    const settings = getWorkSettings();
+    
+    // Cek apakah hari libur
+    if (isTodayHoliday()) {
+        utils.showMessage(null, 'Hari ini adalah hari libur', 'warning');
+        return;
+    }
+    
+    if (type === 'checkin') {
+        modalTitle.textContent = 'Absen Masuk';
+        submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Absen Masuk';
+        
+        // Tampilkan informasi jam kerja
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'modal-info';
+        infoDiv.innerHTML = `
+            <p><i class="fas fa-clock"></i> Jam masuk kerja: <strong>${settings.workStartTime}</strong></p>
+            <p><i class="fas fa-hourglass-half"></i> Toleransi: <strong>${settings.lateTolerance} menit</strong></p>
+            <p class="small-text">Anda terlambat jika masuk setelah ${calculateLateTime(settings)}</p>
+        `;
+        noteForm.insertBefore(infoDiv, noteForm.firstChild);
+    } else {
+        modalTitle.textContent = 'Absen Keluar';
+        submitBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Absen Keluar';
+        
+        // Tampilkan informasi jam kerja
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'modal-info';
+        infoDiv.innerHTML = `
+            <p><i class="fas fa-clock"></i> Jam keluar kerja: <strong>${settings.workEndTime}</strong></p>
+            <p class="small-text">Absen keluar tersedia mulai pukul ${settings.workEndTime}</p>
+        `;
+        noteForm.insertBefore(infoDiv, noteForm.firstChild);
+    }
+    
+    // Show modal
+    modal.classList.add('active');
+    
+    // Handle form submission
+    noteForm.onsubmit = function(e) {
+        e.preventDefault();
+        const note = document.getElementById('noteText').value;
+        
+        // Gunakan fungsi baru dengan pengaturan
+        const result = recordAttendanceWithSettings(
+            currentUser.id,
+            type === 'checkin' ? 'in' : 'out',
+            note
+        );
+        
+        if (result.success) {
+            modal.classList.remove('active');
+            updateAttendanceStatus(currentUser);
+            loadMonthlyStats(currentUser.id);
+            
+            // Show success message
+            utils.showMessage(null, 
+                type === 'checkin' ? 'Absen masuk berhasil!' : 'Absen keluar berhasil!', 
+                'success'
+            );
+        } else {
+            utils.showMessage(null, result.message, 'error');
+        }
+    };
+    
+    // Close modal button
+    const closeBtn = modal.querySelector('.close-modal');
+    closeBtn.onclick = () => {
+        modal.classList.remove('active');
+        // Remove info div
+        const infoDiv = noteForm.querySelector('.modal-info');
+        if (infoDiv) infoDiv.remove();
+    };
+}
+
+// Helper function untuk menghitung waktu terlambat
+function calculateLateTime(settings) {
+    if (settings.lateTolerance === 0) {
+        return settings.workStartTime;
+    }
+    
+    const [hours, minutes] = settings.workStartTime.split(':');
+    const startTime = new Date();
+    startTime.setHours(parseInt(hours), parseInt(minutes) + settings.lateTolerance, 0, 0);
+    
+    return startTime.toLocaleTimeString('id-ID', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+}
+
+// ====== UPDATE LOAD EMPLOYEE DASHBOARD ======
+
+function loadEmployeeDashboard() {
+    // Load pengaturan terbaru
+    const settings = getWorkSettings();
+    
+    // Load content default
+    loadEmployeeContent('attendance');
+    
+    // Auto refresh pengaturan setiap 30 detik
+    setInterval(() => {
+        // Cek jika ada perubahan pengaturan
+        const newSettings = getWorkSettings();
+        if (JSON.stringify(settings) !== JSON.stringify(newSettings)) {
+            // Refresh page jika pengaturan berubah
+            location.reload();
+        }
+    }, 30000);
+}
