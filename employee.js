@@ -968,4 +968,80 @@ window.employeeFunctions = {
     updateAttendanceStatus,
     loadAttendanceHistory,
     loadEmployeeRanking
+
 };
+// Update fungsi absensi di employee.js
+function showNoteModal(type) {
+    const modal = document.getElementById('noteModal');
+    const modalTitle = document.getElementById('noteModalTitle');
+    const noteForm = document.getElementById('noteForm');
+    const submitBtn = document.getElementById('noteSubmitBtn');
+    const currentUser = auth.checkAuth();
+    const settings = window.workSettings.getWorkSettings();
+    
+    // Cek apakah hari libur
+    const today = new Date();
+    if (window.workSettings.checkIfHoliday(today)) {
+        utils.showMessage(null, 'Hari ini adalah hari libur', 'warning');
+        return;
+    }
+    
+    if (type === 'checkin') {
+        modalTitle.textContent = 'Absen Masuk';
+        submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Absen Masuk';
+        
+        // Tampilkan jam masuk yang diatur
+        const infoText = document.createElement('p');
+        infoText.className = 'info-text';
+        infoText.textContent = `Jam masuk kerja: ${settings.workStartTime}`;
+        noteForm.appendChild(infoText);
+    } else {
+        modalTitle.textContent = 'Absen Keluar';
+        submitBtn.innerHTML = '<i class="fas fa-sign-out-alt"></i> Absen Keluar';
+        
+        // Tampilkan jam keluar yang diatur
+        const infoText = document.createElement('p');
+        infoText.className = 'info-text';
+        infoText.textContent = `Jam keluar kerja: ${settings.workEndTime}`;
+        noteForm.appendChild(infoText);
+    }
+    
+    // Show modal
+    modal.classList.add('active');
+    
+    // Handle form submission
+    noteForm.onsubmit = function(e) {
+        e.preventDefault();
+        const note = document.getElementById('noteText').value;
+        
+        // Gunakan fungsi baru dengan pengaturan
+        const result = window.workSettings.recordAttendanceWithSettings(
+            currentUser.id,
+            type === 'checkin' ? 'in' : 'out',
+            note
+        );
+        
+        if (result.success) {
+            modal.classList.remove('active');
+            updateAttendanceStatus(currentUser);
+            loadMonthlyStats(currentUser.id);
+            
+            // Show success message
+            utils.showMessage(null, 
+                type === 'checkin' ? 'Absen masuk berhasil!' : 'Absen keluar berhasil!', 
+                'success'
+            );
+        } else {
+            utils.showMessage(null, result.message, 'error');
+        }
+    };
+    
+    // Close modal button
+    const closeBtn = modal.querySelector('.close-modal');
+    closeBtn.onclick = () => {
+        modal.classList.remove('active');
+        // Remove info text
+        const infoText = noteForm.querySelector('.info-text');
+        if (infoText) infoText.remove();
+    };
+}
