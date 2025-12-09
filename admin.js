@@ -2097,3 +2097,341 @@ function loadJSPDFLibrary() {
 document.addEventListener('DOMContentLoaded', function() {
     loadJSPDFLibrary();
 });
+
+
+// ====== FUNGSI EKSPOR EXCEL YANG BENAR (Menggunakan SheetJS) ======
+
+function exportToExcel() {
+    const startDate = document.getElementById('reportStartDate').value;
+    const endDate = document.getElementById('reportEndDate').value;
+    const employeeId = document.getElementById('employeeFilter').value;
+    
+    if (!startDate || !endDate) {
+        utils.showMessage(null, 'Pilih tanggal terlebih dahulu', 'error');
+        return;
+    }
+    
+    // Get filtered data
+    const reportData = getFilteredReportData(startDate, endDate, employeeId);
+    
+    if (reportData.length === 0) {
+        utils.showMessage(null, 'Tidak ada data untuk diekspor', 'warning');
+        return;
+    }
+    
+    try {
+        // Create Excel workbook
+        createExcelWorkbook(reportData, startDate, endDate, employeeId);
+    } catch (error) {
+        console.error('Error creating Excel:', error);
+        utils.showMessage(null, 'Gagal membuat file Excel. Pastikan library SheetJS terload.', 'error');
+        // Fallback to CSV
+        exportToCSV(reportData, startDate, endDate);
+    }
+}
+
+function createExcelWorkbook(data, startDate, endDate, employeeId) {
+    // Check if XLSX library is available
+    if (typeof XLSX === 'undefined') {
+        throw new Error('XLSX library not loaded');
+    }
+    
+    const employees = auth.getAllEmployees();
+    const selectedEmployee = employeeId === 'all' ? null : 
+        employees.find(e => e.id == employeeId);
+    
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    
+    // ====== SHEET 1: SUMMARY ======
+    const summaryData = [
+        ['LAPORAN ABSENSI KARYAWAN'],
+        ['Sistem Absensi AUAS'],
+        [],
+        ['PERIODE LAPORAN'],
+        [`Dari: ${utils.formatDate(startDate)}`],
+        [`Sampai: ${utils.formatDate(endDate)}`],
+        [`Tanggal Cetak: ${new Date().toLocaleString('id-ID')}`],
+        [],
+        ['FILTER'],
+        [`Karyawan: ${selectedEmployee ? selectedEmployee.name : 'Semua Karyawan'}`],
+        [],
+        ['STATISTIK'],
+    ];
+    
+    const summary = calculateReportSummary(data);
+    summaryData.push([`Total Hari Kerja: ${summary.totalDays}`]);
+    summaryData.push([`Total Data Absensi: ${data.length}`]);
+    summaryData.push([`Rata-rata Kehadiran: ${summary.averageAttendance}%`]);
+    summaryData.push([`Total Keterlambatan: ${summary.totalLateMinutes} menit`]);
+    summaryData.push([]);
+    summaryData.push(['KETERANGAN STATUS:']);
+    summaryData.push(['Hadir: Kehadiran normal']);
+    summaryData.push(['Terlambat: Masuk setelah jam kerja + toleransi']);
+    summaryData.push(['Izin: Ijin tidak masuk kerja']);
+    summaryData.push(['Sakit: Tidak masuk karena sakit']);
+    summaryData.push(['Cuti: Cuti tahunan/izin khusus']);
+    summaryData.push(['Alfa: Tidak masuk tanpa keterangan']);
+    
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+    
+    // Style summary sheet
+    wsSummary['!cols'] = [{wch: 50}]; // Column width
+    
+    // ====== SHEET 2: DETAIL ABSENSI ======
+    const detailHeaders = [
+        'NO',
+        'NAMA KARYAWAN',
+        'TANGGAL',
+        'HARI',
+        'JAM MASUK',
+        'JAM KELUAR',
+        'DURASI KERJA',
+        'STATUS',
+        'KETERLAMBATAN (MENIT)',
+        'CATATAN'
+    ];
+    
+    const detailRows = data.map((item, index) => [
+        index + 1,
+        item.employeeName,
+        utils.formatDate(item.date),
+        item.day,
+        item.inTime || '-',
+        item.outTime || '-',
+        item.duration,
+        item.status,
+        item.lateMinutes || 0,
+        item.notes.join('; ') || '-'
+    ]);
+    
+    const detailData = [detailHeaders, ...detailRows];
+    const wsDetail = XLSX.utils.aoa_to_sheet(detailData);
+    
+    // Style detail sheet
+    wsDetail['!cols'] = [
+        {wch: 5},   // NO
+        {wch: 25},  // NAMA
+        {wch: 12},  // TANGGAL
+        {wch: 10},  // HARI
+        {wch: 10},  // JAM MASUK
+        {wch: 10},  // JAM KELUAR
+        {wch: 12},  // DURASI
+        {wch: 12},  // STATUS
+        {wch: 15},  // KETERLAMBATAN
+        {wch: 30}   // CATATAN
+    ];
+    
+    // Add sheets to workbook
+    XLSX.utils.book_append_sheet(wb, wsSummary, "Ringkasan");
+    XLSX.utils.book_append_sheet(wb, wsDetail, "Detail Absensi");
+    
+    // ====== SHEET 3: REKAP PER KARYAWAN ======
+    if (employeeId === 'all') {
+        const rekapData = createEmployeeSummarySheet(data);
+        const wsRekap = XLSX.utils.aoa_to_sheet(rekapData);
+        wsRekap['!cols'] = [
+            {wch: 25},  // NAMA
+            {wch: 8},   // HADIR
+            {wch: 8},   // TERLAMBAT
+            {wch: 8},   // IZIN
+            {wch: 8},   // SAKIT
+            {wch: 8},   // CUTI
+            {wch: 8},   // ALFA
+            {wch: 12},  // % KEHADIRAN
+            {wch: 15}   // TOTAL TERLAMBAT
+        ];
+        XLSX.utils.book_append_sheet(wb, wsRekap, "Rekap Karyawan");
+    }
+    
+    // Generate filename
+    const employeeName = selectedEmployee ? 
+        selectedEmployee.name.replace(/\s+/g, '_') : 'Semua';
+    const filename = `Laporan_Absensi_${employeeName}_${startDate}_${endDate}.xlsx`;
+    
+    // Download file
+    XLSX.writeFile(wb, filename);
+    
+    utils.showMessage(null, `File Excel berhasil didownload: ${filename}`, 'success');
+}
+
+function createEmployeeSummarySheet(data) {
+    // Group data by employee
+    const employeeMap = {};
+    
+    data.forEach(item => {
+        if (!employeeMap[item.employeeName]) {
+            employeeMap[item.employeeName] = {
+                name: item.employeeName,
+                hadir: 0,
+                terlambat: 0,
+                izin: 0,
+                sakit: 0,
+                cuti: 0,
+                alfa: 0,
+                totalLate: 0,
+                totalDays: new Set()
+            };
+        }
+        
+        const emp = employeeMap[item.employeeName];
+        emp.totalDays.add(item.date);
+        
+        switch(item.status) {
+            case 'Hadir':
+                emp.hadir++;
+                break;
+            case 'Terlambat':
+                emp.terlambat++;
+                emp.totalLate += item.lateMinutes || 0;
+                break;
+            case 'Izin':
+                emp.izin++;
+                break;
+            case 'Sakit':
+                emp.sakit++;
+                break;
+            case 'Cuti':
+                emp.cuti++;
+                break;
+            case 'Alfa':
+                emp.alfa++;
+                break;
+        }
+    });
+    
+    // Convert to array and calculate percentages
+    const headers = [
+        'NAMA KARYAWAN',
+        'HADIR',
+        'TERLAMBAT',
+        'IZIN',
+        'SAKIT',
+        'CUTI',
+        'ALFA',
+        '% KEHADIRAN',
+        'TOTAL TERLAMBAT (MENIT)'
+    ];
+    
+    const rows = Object.values(employeeMap).map(emp => {
+        const totalRecords = emp.hadir + emp.terlambat + emp.izin + emp.sakit + emp.cuti + emp.alfa;
+        const attendanceRate = totalRecords > 0 ? 
+            Math.round(((emp.hadir + emp.terlambat) / totalRecords) * 100) : 0;
+        
+        return [
+            emp.name,
+            emp.hadir,
+            emp.terlambat,
+            emp.izin,
+            emp.sakit,
+            emp.cuti,
+            emp.alfa,
+            `${attendanceRate}%`,
+            emp.totalLate
+        ];
+    });
+    
+    // Sort by name
+    rows.sort((a, b) => a[0].localeCompare(b[0]));
+    
+    return [headers, ...rows];
+}
+
+// ====== FALLBACK: EKSPOR CSV ======
+
+function exportToCSV(data, startDate, endDate) {
+    const headers = [
+        'NO',
+        'NAMA KARYAWAN',
+        'TANGGAL',
+        'HARI',
+        'JAM MASUK',
+        'JAM KELUAR',
+        'DURASI KERJA',
+        'STATUS',
+        'KETERLAMBATAN (MENIT)',
+        'CATATAN'
+    ];
+    
+    const rows = data.map((item, index) => [
+        index + 1,
+        item.employeeName,
+        utils.formatDate(item.date),
+        item.day,
+        item.inTime || '-',
+        item.outTime || '-',
+        item.duration,
+        item.status,
+        item.lateMinutes || 0,
+        item.notes.join('; ') || '-'
+    ]);
+    
+    // Create CSV content with BOM for Excel
+    const csvContent = [
+        '\ufeff' + headers.join(';'), // Use semicolon for better Excel compatibility
+        ...rows.map(row => row.join(';'))
+    ].join('\n');
+    
+    // Create download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    link.href = url;
+    link.setAttribute('download', `Laporan_Absensi_${startDate}_${endDate}.csv`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    utils.showMessage(null, `File CSV berhasil didownload`, 'success');
+}
+
+// ====== FUNGSI EKSPOR PDF YANG LEBIH BAIK ======
+
+function exportToPDF() {
+    const startDate = document.getElementById('reportStartDate').value;
+    const endDate = document.getElementById('reportEndDate').value;
+    const employeeId = document.getElementById('employeeFilter').value;
+    
+    if (!startDate || !endDate) {
+        utils.showMessage(null, 'Pilih tanggal terlebih dahulu', 'error');
+        return;
+    }
+    
+    // Get filtered data
+    const reportData = getFilteredReportData(startDate, endDate, employeeId);
+    
+    if (reportData.length === 0) {
+        utils.showMessage(null, 'Tidak ada data untuk diekspor', 'warning');
+        return;
+    }
+    
+    try {
+        // Try to use jsPDF if available
+        if (typeof window.jspdf !== 'undefined') {
+            createPDFWithJSPDF(reportData, startDate, endDate, employeeId);
+        } else {
+            // Fallback to CSV
+            exportToCSV(reportData, startDate, endDate);
+        }
+    } catch (error) {
+        console.error('Error creating PDF:', error);
+        utils.showMessage(null, 'Gagal membuat PDF. Menggunakan CSV sebagai alternatif.', 'warning');
+        exportToCSV(reportData, startDate, endDate);
+    }
+}
+
+// Load libraries on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Load SheetJS for Excel export
+    if (typeof XLSX === 'undefined') {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        script.onload = function() {
+            console.log('SheetJS loaded successfully');
+        };
+        document.head.appendChild(script);
+    }
+});
