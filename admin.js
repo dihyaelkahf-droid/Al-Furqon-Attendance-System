@@ -1169,3 +1169,327 @@ window.workSettings = {
     recordAttendanceWithSettings,
     checkIfHoliday
 };
+
+// ====== FUNGSI UNTUK SETUP HALAMAN PENGATURAN ======
+
+function setupSettingsPage() {
+    // Inisialisasi pengaturan
+    initializeSettings();
+    
+    // Setup form submission untuk tombol Simpan
+    setupSaveSettingsForm();
+    
+    // Setup auto holiday toggle
+    setupAutoHolidayToggle();
+}
+
+// Fungsi khusus untuk setup form Simpan
+function setupSaveSettingsForm() {
+    const form = document.getElementById('workSettingsForm');
+    const messageDiv = document.getElementById('settingsMessage');
+    
+    if (!form) return;
+    
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Ambil nilai dari form
+        const workStartTime = document.getElementById('workStartTime').value;
+        const workEndTime = document.getElementById('workEndTime').value;
+        const lateTolerance = parseInt(document.getElementById('lateTolerance').value) || 0;
+        const autoHoliday = document.getElementById('autoHoliday').checked;
+        
+        // Get selected work days
+        const workDays = [];
+        document.querySelectorAll('.workday-checkbox input[type="checkbox"]:checked').forEach(checkbox => {
+            workDays.push(parseInt(checkbox.value));
+        });
+        
+        // Validasi
+        if (!workStartTime || !workEndTime) {
+            showSettingsMessage('Jam kerja harus diisi', 'error');
+            return;
+        }
+        
+        // Validasi jam masuk < jam keluar
+        const start = new Date(`1970-01-01T${workStartTime}:00`);
+        const end = new Date(`1970-01-01T${workEndTime}:00`);
+        
+        if (start >= end) {
+            showSettingsMessage('Jam masuk harus sebelum jam keluar', 'error');
+            return;
+        }
+        
+        // Validasi hari kerja minimal 1 hari
+        if (workDays.length === 0) {
+            showSettingsMessage('Pilih minimal 1 hari kerja', 'error');
+            return;
+        }
+        
+        // Save settings
+        const newSettings = {
+            workStartTime,
+            workEndTime,
+            lateTolerance,
+            autoHoliday,
+            workDays
+        };
+        
+        const success = updateWorkSettings(newSettings);
+        
+        if (success) {
+            showSettingsMessage('Pengaturan berhasil disimpan!', 'success');
+            
+            // Update info di dashboard
+            updateDashboardInfo();
+            
+            // Auto refresh form setelah 2 detik
+            setTimeout(() => {
+                // Reload form dengan nilai baru
+                loadSettingsFormData();
+            }, 2000);
+        } else {
+            showSettingsMessage('Gagal menyimpan pengaturan', 'error');
+        }
+    });
+}
+
+// Fungsi untuk setup toggle hari Minggu
+function setupAutoHolidayToggle() {
+    const autoHolidayCheckbox = document.getElementById('autoHoliday');
+    if (!autoHolidayCheckbox) return;
+    
+    autoHolidayCheckbox.addEventListener('change', function() {
+        const sundayCheckbox = document.querySelector('.workday-checkbox input[value="6"]');
+        if (sundayCheckbox) {
+            sundayCheckbox.disabled = this.checked;
+            if (this.checked) {
+                sundayCheckbox.checked = false;
+            }
+        }
+    });
+}
+
+// Fungsi untuk menampilkan pesan
+function showSettingsMessage(message, type = 'info') {
+    const messageDiv = document.getElementById('settingsMessage');
+    if (!messageDiv) return;
+    
+    messageDiv.textContent = message;
+    messageDiv.className = `message ${type}`;
+    messageDiv.style.display = 'block';
+    
+    // Auto hide setelah 5 detik
+    if (type !== 'error') {
+        setTimeout(() => {
+            messageDiv.style.display = 'none';
+        }, 5000);
+    }
+}
+
+// Fungsi untuk memuat data pengaturan ke form
+function loadSettingsFormData() {
+    const settings = getWorkSettings();
+    
+    // Set values ke form
+    const workStartTime = document.getElementById('workStartTime');
+    const workEndTime = document.getElementById('workEndTime');
+    const lateTolerance = document.getElementById('lateTolerance');
+    const autoHoliday = document.getElementById('autoHoliday');
+    
+    if (workStartTime) workStartTime.value = settings.workStartTime;
+    if (workEndTime) workEndTime.value = settings.workEndTime;
+    if (lateTolerance) lateTolerance.value = settings.lateTolerance;
+    if (autoHoliday) autoHoliday.checked = settings.autoHoliday;
+    
+    // Set hari kerja
+    document.querySelectorAll('.workday-checkbox input[type="checkbox"]').forEach(checkbox => {
+        const value = parseInt(checkbox.value);
+        checkbox.checked = settings.workDays.includes(value);
+        
+        // Disable Minggu jika auto holiday aktif
+        if (value === 6 && settings.autoHoliday) {
+            checkbox.disabled = true;
+        }
+    });
+}
+
+// Fungsi untuk update info di dashboard
+function updateDashboardInfo() {
+    const settings = getWorkSettings();
+    
+    // Update info jam kerja di elemen yang sesuai
+    const workTimeInfo = document.getElementById('workTimeInfo');
+    if (workTimeInfo) {
+        workTimeInfo.textContent = `Jam Kerja: ${settings.workStartTime} - ${settings.workEndTime}`;
+    }
+}
+
+// ====== UPDATE FUNGSI LOAD SETTINGS HTML ======
+
+function getSettingsHTML() {
+    const settings = getWorkSettings();
+    
+    return `
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-clock"></i> Pengaturan Jam Kerja</h3>
+                <p class="card-subtitle">Atur jam kerja dan toleransi keterlambatan</p>
+            </div>
+            <div class="settings-form">
+                <form id="workSettingsForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="workStartTime">
+                                <i class="fas fa-sign-in-alt"></i> Jam Masuk Kerja
+                            </label>
+                            <input type="time" id="workStartTime" value="${settings.workStartTime}" 
+                                   class="form-control" required>
+                            <small class="form-text">Default: 07:30</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="workEndTime">
+                                <i class="fas fa-sign-out-alt"></i> Jam Keluar Kerja
+                            </label>
+                            <input type="time" id="workEndTime" value="${settings.workEndTime}" 
+                                   class="form-control" required>
+                            <small class="form-text">Default: 15:30</small>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="lateTolerance">
+                                <i class="fas fa-hourglass-half"></i> Toleransi Keterlambatan (menit)
+                            </label>
+                            <input type="number" id="lateTolerance" value="${settings.lateTolerance}" 
+                                   min="0" max="120" class="form-control">
+                            <small class="form-text">0 = tidak ada toleransi (maksimal 120 menit)</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="autoHoliday">
+                                <i class="fas fa-calendar-times"></i> Hari Libur Otomatis
+                            </label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="autoHoliday" ${settings.autoHoliday ? 'checked' : ''}>
+                                    <span class="checkbox-custom"></span>
+                                    <span>Minggu sebagai hari libur</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label><i class="fas fa-calendar-alt"></i> Hari Kerja</label>
+                        <div class="workdays-selection">
+                            ${['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+                                .map((day, index) => `
+                                    <label class="workday-checkbox">
+                                        <input type="checkbox" value="${index}" 
+                                               ${settings.workDays.includes(index) ? 'checked' : ''}
+                                               ${index === 6 && settings.autoHoliday ? 'disabled' : ''}>
+                                        <span class="workday-label">${day}</span>
+                                    </label>
+                                `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-primary btn-block">
+                            <i class="fas fa-save"></i> Simpan Pengaturan
+                        </button>
+                    </div>
+                </form>
+                
+                <div id="settingsMessage" class="message" style="display: none;"></div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-info-circle"></i> Informasi Pengaturan Saat Ini</h3>
+            </div>
+            <div class="settings-info">
+                <div class="info-item">
+                    <i class="fas fa-clock"></i>
+                    <div>
+                        <h4>Jam Kerja</h4>
+                        <p>${settings.workStartTime} - ${settings.workEndTime}</p>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-hourglass-half"></i>
+                    <div>
+                        <h4>Toleransi Keterlambatan</h4>
+                        <p>${settings.lateTolerance} menit</p>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-calendar-alt"></i>
+                    <div>
+                        <h4>Hari Kerja</h4>
+                        <p>${getWorkDaysText(settings.workDays, settings.autoHoliday)}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Helper function untuk menampilkan hari kerja sebagai text
+function getWorkDaysText(workDays, autoHoliday) {
+    const daysMap = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    
+    if (autoHoliday && workDays.includes(0)) {
+        // Hapus Minggu jika auto holiday aktif
+        workDays = workDays.filter(day => day !== 0);
+    }
+    
+    const dayNames = workDays.map(day => daysMap[day]);
+    
+    if (dayNames.length === 0) {
+        return 'Tidak ada hari kerja';
+    } else if (dayNames.length === 1) {
+        return dayNames[0];
+    } else if (dayNames.length === 7) {
+        return 'Setiap hari';
+    } else {
+        return dayNames.join(', ');
+    }
+}
+
+// ====== UPDATE FUNGSI LOAD ADMIN CONTENT ======
+
+function loadAdminContent(target) {
+    const contentArea = document.getElementById('contentArea');
+    if (!contentArea) return;
+    
+    switch(target) {
+        case 'dashboard':
+            contentArea.innerHTML = getAdminDashboardHTML();
+            setupAdminDashboard();
+            break;
+        case 'attendance':
+            contentArea.innerHTML = getAttendanceManagementHTML();
+            loadAttendanceData();
+            break;
+        case 'employees':
+            contentArea.innerHTML = getEmployeeManagementHTML();
+            loadEmployeeData();
+            break;
+        case 'reports':
+            contentArea.innerHTML = getReportsHTML();
+            setupReports();
+            break;
+        case 'settings':
+            contentArea.innerHTML = getSettingsHTML();
+            setupSettingsPage(); // PASTIKAN fungsi ini dipanggil!
+            break;
+        default:
+            contentArea.innerHTML = getAdminDashboardHTML();
+            setupAdminDashboard();
+    }
+}
