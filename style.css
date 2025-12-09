@@ -1753,3 +1753,42 @@ input[type="time"]::-webkit-calendar-picker-indicator {
         gap: 5px;
     }
 }
+
+
+/* Loading State */
+.loading-state {
+    text-align: center;
+    padding: 50px 20px;
+    color: #666;
+}
+
+.loading-state i {
+    font-size: 40px;
+    color: #4361ee;
+    margin-bottom: 20px;
+}
+
+.loading-state p {
+    font-size: 16px;
+}
+
+/* Error State */
+.error-state {
+    text-align: center;
+    padding: 50px 20px;
+    color: #f72585;
+}
+
+.error-state i {
+    font-size: 40px;
+    margin-bottom: 20px;
+}
+
+.error-state p {
+    font-size: 16px;
+    margin-bottom: 20px;
+}
+
+.error-state button {
+    margin-top: 20px;
+}
