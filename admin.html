@@ -8,7 +8,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Library untuk Ekspor Excel dan PDF -->
+    <!-- Library untuk Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Library untuk Ekspor -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
@@ -18,8 +20,8 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <h2><i class="fas fa-fingerprint"></i> Admin Panel</h2>
-                <p>Sistem Absensi AUAS</p>
+                <h2><i class="fas fa-fingerprint"></i> Absensi</h2>
+                <p>Admin Panel</p>
             </div>
             
             <nav class="sidebar-nav">
@@ -27,13 +29,13 @@
                     <i class="fas fa-tachometer-alt"></i>
                     <span>Dashboard</span>
                 </a>
-                <a href="#" class="nav-item" data-target="attendance">
-                    <i class="fas fa-clipboard-check"></i>
-                    <span>Data Absensi</span>
-                </a>
                 <a href="#" class="nav-item" data-target="employees">
                     <i class="fas fa-users"></i>
                     <span>Data Karyawan</span>
+                </a>
+                <a href="#" class="nav-item" data-target="attendance">
+                    <i class="fas fa-calendar-check"></i>
+                    <span>Absensi Hari Ini</span>
                 </a>
                 <a href="#" class="nav-item" data-target="reports">
                     <i class="fas fa-chart-bar"></i>
@@ -42,6 +44,10 @@
                 <a href="#" class="nav-item" data-target="settings">
                     <i class="fas fa-cog"></i>
                     <span>Pengaturan</span>
+                </a>
+                <a href="#" class="nav-item" data-target="help">
+                    <i class="fas fa-question-circle"></i>
+                    <span>Bantuan</span>
                 </a>
             </nav>
             
@@ -59,7 +65,7 @@
             <div class="top-bar">
                 <div class="user-info">
                     <div class="user-avatar" id="userAvatar">A</div>
-                    <div>
+                    <div class="user-details">
                         <h3 id="userName">Administrator</h3>
                         <p id="userRole">Admin</p>
                     </div>
@@ -69,98 +75,108 @@
             
             <!-- Content Area -->
             <div id="contentArea">
-                <!-- Dashboard content will be loaded here -->
+                <!-- Content akan dimuat di sini -->
+                <div class="loading-state">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Memuat dashboard admin...</p>
+                </div>
             </div>
         </main>
     </div>
     
-    <!-- HANYA SATU SET MODAL - HAPUS YANG DUPLIKAT -->
-    
-    <!-- Modal untuk tambah karyawan -->
-    <div class="modal" id="addEmployeeModal">
+    <!-- Modal untuk berbagai keperluan -->
+    <div class="modal" id="adminModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Tambah Karyawan Baru</h3>
+                <h3 id="adminModalTitle">Modal Title</h3>
                 <button class="close-modal">&times;</button>
             </div>
-            <div class="modal-body">
-                <form id="addEmployeeForm">
-                    <div class="form-group">
-                        <label for="empName">Nama Lengkap</label>
-                        <input type="text" id="empName" placeholder="Masukkan nama lengkap" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="empUsername">Username</label>
-                        <input type="text" id="empUsername" placeholder="Masukkan username" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="empPassword">Password</label>
-                        <input type="password" id="empPassword" placeholder="Masukkan password" required>
-                    </div>
-                    <div class="form-group">
-                        <button type="submit" class="btn btn-primary btn-block">
-                            <i class="fas fa-plus"></i> Tambah Karyawan
-                        </button>
-                    </div>
-                </form>
+            <div class="modal-body" id="adminModalBody">
+                <!-- Modal content akan dimuat di sini -->
             </div>
         </div>
     </div>
     
-    <!-- Modal untuk edit absensi -->
-    <div class="modal" id="editAttendanceModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Edit Absensi</h3>
-                <button class="close-modal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <form id="editAttendanceForm">
-                    <!-- Form akan diisi secara dinamis -->
-                </form>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Scripts HARUS DI AKHIR BODY -->
+    <!-- Scripts -->
     <script src="auth.js"></script>
     <script src="script.js"></script>
     <script src="admin.js"></script>
     
-    <!-- Initialize admin dashboard -->
+    <!-- Initialize admin page -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Admin page loaded');
             
-            // Cek authentication
+            // Cek autentikasi
             const user = auth.checkAuth();
-            if (user) {
-                console.log('Admin authenticated:', user.name);
-                
-                // Initialize dashboard jika fungsi tersedia
-                if (typeof adminFunctions !== 'undefined' && 
-                    typeof adminFunctions.loadAdminDashboard === 'function') {
-                    adminFunctions.loadAdminDashboard();
-                } else {
-                    console.error('Admin functions not loaded');
-                    // Fallback
-                    const contentArea = document.getElementById('contentArea');
-                    if (contentArea) {
-                        contentArea.innerHTML = `
-                            <div class="card">
-                                <div class="card-header">
-                                    <h3>Dashboard Admin</h3>
-                                </div>
-                                <div class="card-body">
-                                    <p>Selamat datang, Administrator!</p>
-                                    <p>Silakan pilih menu di sidebar.</p>
-                                </div>
-                            </div>
-                        `;
-                    }
-                }
+            if (!user) {
+                console.error('User not authenticated');
+                return;
+            }
+            
+            // Pastikan user adalah admin
+            if (user.role !== 'admin') {
+                alert('Akses ditolak. Halaman ini hanya untuk administrator.');
+                window.location.href = 'employee.html';
+                return;
+            }
+            
+            console.log('Admin authenticated:', user.name);
+            
+            // Initialize admin page
+            if (typeof adminPage !== 'undefined' && 
+                typeof adminPage.initializeAdminPage === 'function') {
+                adminPage.initializeAdminPage();
+            } else {
+                console.error('Admin page functions not available');
+                loadFallbackAdminContent(user);
             }
         });
+        
+        function loadFallbackAdminContent(user) {
+            const contentArea = document.getElementById('contentArea');
+            if (contentArea) {
+                contentArea.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-tachometer-alt"></i> Dashboard Admin</h3>
+                        </div>
+                        <div class="card-body">
+                            <p>Selamat datang, ${user.name}!</p>
+                            <p>Anda login sebagai Administrator.</p>
+                            <p>Silakan pilih menu di sidebar untuk mulai.</p>
+                            
+                            <div class="mt-4">
+                                <h4>Statistik Sistem:</h4>
+                                <div class="stats-grid">
+                                    <div class="stat-card">
+                                        <div class="stat-icon">
+                                            <i class="fas fa-users"></i>
+                                        </div>
+                                        <div class="stat-info">
+                                            <h4>${auth.getAllEmployees().length}</h4>
+                                            <p>Total Karyawan</p>
+                                        </div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div class="stat-icon">
+                                            <i class="fas fa-calendar-check"></i>
+                                        </div>
+                                        <div class="stat-info">
+                                            <h4>${auth.attendanceData.filter(a => {
+                                                const today = new Date().toISOString().split('T')[0];
+                                                return a.date === today && a.type === 'in';
+                                            }).length}</h4>
+                                            <p>Hadir Hari Ini</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
     </script>
 </body>
 </html>
