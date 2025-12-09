@@ -1493,3 +1493,607 @@ function loadAdminContent(target) {
             setupAdminDashboard();
     }
 }
+
+
+// ====== SISTEM LAPORAN YANG DIPERBAIKI ======
+
+function getReportsHTML() {
+    return `
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-chart-bar"></i> Laporan Absensi Detail</h3>
+                <p class="card-subtitle">Filter laporan berdasarkan tanggal dan karyawan</p>
+            </div>
+            
+            <div class="report-controls">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="reportStartDate"><i class="fas fa-calendar-day"></i> Dari Tanggal</label>
+                        <input type="date" id="reportStartDate" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="reportEndDate"><i class="fas fa-calendar-day"></i> Sampai Tanggal</label>
+                        <input type="date" id="reportEndDate" class="form-control" value="${new Date().toISOString().split('T')[0]}">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="employeeFilter"><i class="fas fa-user"></i> Filter Karyawan</label>
+                    <select id="employeeFilter" class="form-control">
+                        <option value="all">Semua Karyawan</option>
+                        <!-- Options akan diisi oleh JavaScript -->
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <button class="btn btn-primary" onclick="generateReport()">
+                        <i class="fas fa-filter"></i> Tampilkan Laporan
+                    </button>
+                    <button class="btn btn-success" onclick="exportToExcel()">
+                        <i class="fas fa-file-excel"></i> Export ke Excel
+                    </button>
+                    <button class="btn btn-danger" onclick="exportToPDF()">
+                        <i class="fas fa-file-pdf"></i> Export ke PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-table"></i> Data Laporan</h3>
+                <div class="report-summary" id="reportSummary">
+                    <!-- Summary akan ditampilkan di sini -->
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="table" id="reportTable">
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>Nama Karyawan</th>
+                            <th>Tanggal</th>
+                            <th>Hari</th>
+                            <th>Jam Masuk</th>
+                            <th>Jam Keluar</th>
+                            <th>Durasi</th>
+                            <th>Status</th>
+                            <th>Keterlambatan</th>
+                            <th>Catatan</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportTableBody">
+                        <!-- Data akan dimuat di sini -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="report-footer">
+                <p id="totalRecords">Total: 0 data</p>
+            </div>
+        </div>
+    `;
+}
+
+// Setup reports page
+function setupReports() {
+    // Set default dates
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    document.getElementById('reportStartDate').value = firstDay.toISOString().split('T')[0];
+    document.getElementById('reportEndDate').value = today.toISOString().split('T')[0];
+    
+    // Load employee options
+    loadEmployeeOptions();
+    
+    // Generate initial report
+    generateReport();
+}
+
+// Load employee options for filter
+function loadEmployeeOptions() {
+    const employeeFilter = document.getElementById('employeeFilter');
+    if (!employeeFilter) return;
+    
+    const employees = auth.getAllEmployees();
+    
+    // Sort employees by name
+    employees.sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Clear existing options except first
+    employeeFilter.innerHTML = '<option value="all">Semua Karyawan</option>';
+    
+    // Add employee options
+    employees.forEach(employee => {
+        const option = document.createElement('option');
+        option.value = employee.id;
+        option.textContent = employee.name;
+        employeeFilter.appendChild(option);
+    });
+}
+
+// Generate report based on filters
+function generateReport() {
+    const startDate = document.getElementById('reportStartDate').value;
+    const endDate = document.getElementById('reportEndDate').value;
+    const employeeId = document.getElementById('employeeFilter').value;
+    
+    if (!startDate || !endDate) {
+        utils.showMessage(null, 'Pilih tanggal terlebih dahulu', 'error');
+        return;
+    }
+    
+    // Validate date range
+    if (new Date(startDate) > new Date(endDate)) {
+        utils.showMessage(null, 'Tanggal awal tidak boleh lebih besar dari tanggal akhir', 'error');
+        return;
+    }
+    
+    // Get filtered data
+    const reportData = getFilteredReportData(startDate, endDate, employeeId);
+    
+    // Display report
+    displayReport(reportData, startDate, endDate);
+}
+
+// Get filtered report data
+function getFilteredReportData(startDate, endDate, employeeId) {
+    const allEmployees = auth.getAllEmployees();
+    const attendanceData = auth.attendanceData;
+    
+    // Convert dates to comparable format
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999); // End of day
+    
+    // Filter attendance data by date range
+    let filteredData = attendanceData.filter(record => {
+        const recordDate = new Date(record.date);
+        return recordDate >= start && recordDate <= end;
+    });
+    
+    // Filter by employee if selected
+    if (employeeId !== 'all') {
+        filteredData = filteredData.filter(record => record.userId === parseInt(employeeId));
+    }
+    
+    // Group data by employee and date
+    const groupedData = {};
+    
+    filteredData.forEach(record => {
+        const employee = allEmployees.find(e => e.id === record.userId);
+        if (!employee) return;
+        
+        const key = `${employee.id}-${record.date}`;
+        if (!groupedData[key]) {
+            groupedData[key] = {
+                employeeId: employee.id,
+                employeeName: employee.name,
+                date: record.date,
+                day: utils.getDayName(record.date),
+                inTime: '',
+                outTime: '',
+                status: 'Alfa',
+                lateMinutes: 0,
+                notes: [],
+                duration: '0 jam'
+            };
+        }
+        
+        if (record.type === 'in') {
+            groupedData[key].inTime = record.time;
+            groupedData[key].status = record.late ? 'Terlambat' : 'Hadir';
+            if (record.late) {
+                groupedData[key].lateMinutes = record.lateMinutes || 0;
+            }
+            if (record.note) {
+                groupedData[key].notes.push(`Masuk: ${record.note}`);
+            }
+        } else if (record.type === 'out') {
+            groupedData[key].outTime = record.time;
+            if (record.note) {
+                groupedData[key].notes.push(`Keluar: ${record.note}`);
+            }
+            
+            // Calculate duration if both in and out times exist
+            if (groupedData[key].inTime) {
+                groupedData[key].duration = calculateWorkingDuration(
+                    groupedData[key].inTime, 
+                    groupedData[key].outTime
+                );
+            }
+        } else if (record.type === 'leave') {
+            groupedData[key].status = record.leaveType === 'permission' ? 'Izin' : 
+                                     record.leaveType === 'sick' ? 'Sakit' : 'Cuti';
+            if (record.note) {
+                groupedData[key].notes.push(`${groupedData[key].status}: ${record.note}`);
+            }
+        }
+    });
+    
+    // Convert to array and sort by employee name and date
+    const result = Object.values(groupedData);
+    result.sort((a, b) => {
+        if (a.employeeName === b.employeeName) {
+            return new Date(a.date) - new Date(b.date);
+        }
+        return a.employeeName.localeCompare(b.employeeName);
+    });
+    
+    return result;
+}
+
+// Calculate working duration
+function calculateWorkingDuration(inTime, outTime) {
+    if (!inTime || !outTime) return '0 jam';
+    
+    const [inHour, inMinute] = inTime.split(':').map(Number);
+    const [outHour, outMinute] = outTime.split(':').map(Number);
+    
+    let totalMinutes = (outHour * 60 + outMinute) - (inHour * 60 + inMinute);
+    
+    // Handle negative duration (overnight work)
+    if (totalMinutes < 0) {
+        totalMinutes += 24 * 60;
+    }
+    
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    
+    if (hours === 0) {
+        return `${minutes} menit`;
+    } else if (minutes === 0) {
+        return `${hours} jam`;
+    } else {
+        return `${hours} jam ${minutes} menit`;
+    }
+}
+
+// Display report in table
+function displayReport(data, startDate, endDate) {
+    const tableBody = document.getElementById('reportTableBody');
+    const totalRecords = document.getElementById('totalRecords');
+    const reportSummary = document.getElementById('reportSummary');
+    
+    if (!tableBody) return;
+    
+    // Clear table
+    tableBody.innerHTML = '';
+    
+    if (data.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="10" class="text-center">
+                    <div class="empty-state">
+                        <i class="fas fa-clipboard-list fa-3x"></i>
+                        <p>Tidak ada data absensi untuk periode yang dipilih</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        totalRecords.textContent = 'Total: 0 data';
+        reportSummary.innerHTML = '<p>Tidak ada data untuk ditampilkan</p>';
+        return;
+    }
+    
+    // Calculate summary
+    const summary = calculateReportSummary(data);
+    
+    // Display summary
+    reportSummary.innerHTML = `
+        <div class="summary-stats">
+            <div class="summary-stat">
+                <span class="stat-label">Periode:</span>
+                <span class="stat-value">${utils.formatDate(startDate)} - ${utils.formatDate(endDate)}</span>
+            </div>
+            <div class="summary-stat">
+                <span class="stat-label">Total Hari Kerja:</span>
+                <span class="stat-value">${summary.totalDays} hari</span>
+            </div>
+            <div class="summary-stat">
+                <span class="stat-label">Rata-rata Kehadiran:</span>
+                <span class="stat-value">${summary.averageAttendance}%</span>
+            </div>
+            <div class="summary-stat">
+                <span class="stat-label">Total Keterlambatan:</span>
+                <span class="stat-value">${summary.totalLateMinutes} menit</span>
+            </div>
+        </div>
+    `;
+    
+    // Display data
+    let currentEmployee = '';
+    let employeeRowspan = 0;
+    let employeeStartIndex = 0;
+    
+    data.forEach((item, index) => {
+        // Check if new employee
+        if (item.employeeName !== currentEmployee) {
+            currentEmployee = item.employeeName;
+            employeeRowspan = data.filter(d => d.employeeName === currentEmployee).length;
+            employeeStartIndex = index;
+        }
+        
+        const row = document.createElement('tr');
+        
+        // Only show employee name in first row
+        const employeeNameCell = index === employeeStartIndex ? 
+            `<td rowspan="${employeeRowspan}" class="employee-name-cell">${item.employeeName}</td>` : 
+            '';
+        
+        row.innerHTML = `
+            <td>${index + 1}</td>
+            ${employeeNameCell}
+            <td>${utils.formatDate(item.date)}</td>
+            <td>${item.day}</td>
+            <td>${item.inTime || '-'}</td>
+            <td>${item.outTime || '-'}</td>
+            <td>${item.duration}</td>
+            <td><span class="status-badge ${getStatusClass(item.status)}">${item.status}</span></td>
+            <td>${item.lateMinutes > 0 ? `${item.lateMinutes} menit` : '-'}</td>
+            <td>${item.notes.join('; ') || '-'}</td>
+        `;
+        
+        tableBody.appendChild(row);
+    });
+    
+    totalRecords.textContent = `Total: ${data.length} data`;
+}
+
+// Calculate report summary
+function calculateReportSummary(data) {
+    const totalDays = new Set(data.map(item => item.date)).size;
+    const totalPresent = data.filter(item => item.status === 'Hadir' || item.status === 'Terlambat').length;
+    const totalLateMinutes = data.reduce((sum, item) => sum + (item.lateMinutes || 0), 0);
+    const averageAttendance = totalDays > 0 ? Math.round((totalPresent / (data.length || 1)) * 100) : 0;
+    
+    return {
+        totalDays,
+        totalPresent,
+        totalLateMinutes,
+        averageAttendance
+    };
+}
+
+// Get status class for badge
+function getStatusClass(status) {
+    switch(status) {
+        case 'Hadir': return 'status-present';
+        case 'Terlambat': return 'status-late';
+        case 'Izin': return 'status-warning';
+        case 'Sakit': return 'status-info';
+        case 'Cuti': return 'status-info';
+        case 'Alfa': return 'status-absence';
+        default: return '';
+    }
+}
+
+// ====== FITUR EKSPOR EXCEL ======
+
+function exportToExcel() {
+    const startDate = document.getElementById('reportStartDate').value;
+    const endDate = document.getElementById('reportEndDate').value;
+    const employeeId = document.getElementById('employeeFilter').value;
+    
+    if (!startDate || !endDate) {
+        utils.showMessage(null, 'Pilih tanggal terlebih dahulu', 'error');
+        return;
+    }
+    
+    // Get filtered data
+    const reportData = getFilteredReportData(startDate, endDate, employeeId);
+    
+    if (reportData.length === 0) {
+        utils.showMessage(null, 'Tidak ada data untuk diekspor', 'warning');
+        return;
+    }
+    
+    // Prepare data for Excel
+    const excelData = prepareExcelData(reportData, startDate, endDate);
+    
+    // Create and download Excel file
+    createExcelFile(excelData, `Laporan_Absensi_${startDate}_${endDate}.xlsx`);
+}
+
+function prepareExcelData(data, startDate, endDate) {
+    const employees = auth.getAllEmployees();
+    const selectedEmployee = document.getElementById('employeeFilter').value;
+    
+    // Prepare header
+    const headers = [
+        'NO',
+        'NAMA KARYAWAN',
+        'TANGGAL',
+        'HARI',
+        'JAM MASUK',
+        'JAM KELUAR',
+        'DURASI KERJA',
+        'STATUS',
+        'KETERLAMBATAN (MENIT)',
+        'CATATAN'
+    ];
+    
+    // Prepare rows
+    const rows = data.map((item, index) => [
+        index + 1,
+        item.employeeName,
+        utils.formatDate(item.date),
+        item.day,
+        item.inTime || '-',
+        item.outTime || '-',
+        item.duration,
+        item.status,
+        item.lateMinutes || 0,
+        item.notes.join('; ') || '-'
+    ]);
+    
+    // Add summary section
+    const summary = calculateReportSummary(data);
+    const summaryRows = [
+        [],
+        ['LAPORAN ABSENSI'],
+        [`Periode: ${utils.formatDate(startDate)} - ${utils.formatDate(endDate)}`],
+        selectedEmployee === 'all' ? 
+            [`Jumlah Karyawan: ${new Set(data.map(d => d.employeeId)).size}`] : 
+            [`Nama Karyawan: ${employees.find(e => e.id == selectedEmployee)?.name || '-'}`],
+        [`Total Hari Kerja: ${summary.totalDays}`],
+        [`Rata-rata Kehadiran: ${summary.averageAttendance}%`],
+        [`Total Keterlambatan: ${summary.totalLateMinutes} menit`],
+        [],
+        ['DETAIL ABSENSI:']
+    ];
+    
+    return {
+        headers,
+        rows,
+        summaryRows
+    };
+}
+
+function createExcelFile(data, filename) {
+    // Create CSV content
+    let csvContent = '';
+    
+    // Add summary
+    data.summaryRows.forEach(row => {
+        csvContent += row.join(',') + '\n';
+    });
+    
+    // Add headers
+    csvContent += data.headers.join(',') + '\n';
+    
+    // Add rows
+    data.rows.forEach(row => {
+        csvContent += row.map(cell => {
+            // Escape quotes and wrap in quotes if contains comma
+            if (typeof cell === 'string' && (cell.includes(',') || cell.includes('"'))) {
+                return `"${cell.replace(/"/g, '""')}"`;
+            }
+            return cell;
+        }).join(',') + '\n';
+    });
+    
+    // Create download link
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    link.href = url;
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    utils.showMessage(null, `File Excel berhasil didownload: ${filename}`, 'success');
+}
+
+// ====== FITUR EKSPOR PDF ======
+
+function exportToPDF() {
+    const startDate = document.getElementById('reportStartDate').value;
+    const endDate = document.getElementById('reportEndDate').value;
+    const employeeId = document.getElementById('employeeFilter').value;
+    
+    if (!startDate || !endDate) {
+        utils.showMessage(null, 'Pilih tanggal terlebih dahulu', 'error');
+        return;
+    }
+    
+    // Get filtered data
+    const reportData = getFilteredReportData(startDate, endDate, employeeId);
+    
+    if (reportData.length === 0) {
+        utils.showMessage(null, 'Tidak ada data untuk diekspor', 'warning');
+        return;
+    }
+    
+    // Create PDF using jsPDF (if available) or fallback to simple method
+    if (typeof window.jspdf !== 'undefined') {
+        createPDFWithJSPDF(reportData, startDate, endDate);
+    } else {
+        createSimplePDF(reportData, startDate, endDate);
+    }
+}
+
+function createSimplePDF(data, startDate, endDate) {
+    const employees = auth.getAllEmployees();
+    const selectedEmployee = document.getElementById('employeeFilter').value;
+    const summary = calculateReportSummary(data);
+    
+    // Create PDF content
+    let pdfContent = `
+        LAPORAN ABSENSI KARYAWAN
+        =========================
+        
+        Periode: ${utils.formatDate(startDate)} - ${utils.formatDate(endDate)}
+        ${selectedEmployee === 'all' ? 
+            `Jumlah Karyawan: ${new Set(data.map(d => d.employeeId)).size}` : 
+            `Nama Karyawan: ${employees.find(e => e.id == selectedEmployee)?.name || '-'}`}
+        Total Hari Kerja: ${summary.totalDays}
+        Rata-rata Kehadiran: ${summary.averageAttendance}%
+        Total Keterlambatan: ${summary.totalLateMinutes} menit
+        
+        =========================
+        DETAIL ABSENSI:
+        =========================
+        
+    `;
+    
+    let currentEmployee = '';
+    data.forEach((item, index) => {
+        if (item.employeeName !== currentEmployee) {
+            currentEmployee = item.employeeName;
+            pdfContent += `\n\n${currentEmployee.toUpperCase()}:\n`;
+            pdfContent += ''.padEnd(50, '-') + '\n';
+        }
+        
+        pdfContent += `
+        ${index + 1}. ${utils.formatDate(item.date)} (${item.day})
+           Masuk: ${item.inTime || '-'}
+           Keluar: ${item.outTime || '-'}
+           Durasi: ${item.duration}
+           Status: ${item.status}
+           Keterlambatan: ${item.lateMinutes > 0 ? `${item.lateMinutes} menit` : '-'}
+           Catatan: ${item.notes.join('; ') || '-'}
+        `.trim() + '\n';
+    });
+    
+    pdfContent += `
+        =========================
+        Dicetak pada: ${new Date().toLocaleString('id-ID')}
+        Sistem Absensi AUAS
+    `;
+    
+    // Create download link
+    const blob = new Blob([pdfContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    link.href = url;
+    link.setAttribute('download', `Laporan_Absensi_${startDate}_${endDate}.txt`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    utils.showMessage(null, 'File PDF/TXT berhasil didownload', 'success');
+}
+
+// For better PDF export, add jsPDF library
+function loadJSPDFLibrary() {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    script.onload = function() {
+        console.log('jsPDF loaded successfully');
+    };
+    document.head.appendChild(script);
+}
+
+// Call this on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadJSPDFLibrary();
+});
