@@ -241,3 +241,77 @@ window.auth = {
     attendanceData
 
 };
+
+
+// Update fungsi recordAttendance untuk menggunakan pengaturan
+function recordAttendance(userId, type, note = '') {
+    const now = new Date();
+    
+    // Ambil pengaturan dari localStorage
+    const settings = JSON.parse(localStorage.getItem('workSettings')) || {
+        workStartTime: '07:30',
+        workEndTime: '15:30',
+        lateTolerance: 0,
+        workDays: [1, 2, 3, 4, 5, 6],
+        autoHoliday: true
+    };
+    
+    // Cek apakah hari ini hari kerja
+    const today = now.getDay();
+    const isWorkDay = settings.workDays.includes(today);
+    const isAutoHoliday = settings.autoHoliday && today === 0;
+    
+    if (!isWorkDay || isAutoHoliday) {
+        return { 
+            success: false, 
+            message: 'Hari ini adalah hari libur' 
+        };
+    }
+    
+    const attendanceRecord = {
+        id: Date.now(),
+        userId: userId,
+        date: now.toISOString().split('T')[0],
+        time: now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+        type: type,
+        note: note,
+        timestamp: now.getTime()
+    };
+    
+    // Validasi untuk absen masuk
+    if (type === 'in') {
+        const [hours, minutes] = settings.workStartTime.split(':');
+        const workStart = new Date();
+        workStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        
+        // Apply late tolerance
+        const toleranceMs = settings.lateTolerance * 60 * 1000;
+        const adjustedStart = new Date(workStart.getTime() + toleranceMs);
+        
+        if (now > adjustedStart) {
+            attendanceRecord.late = true;
+            attendanceRecord.lateMinutes = Math.floor((now - workStart) / (1000 * 60));
+            attendanceRecord.lateMinutes = Math.max(0, attendanceRecord.lateMinutes - settings.lateTolerance);
+        }
+    }
+    
+    // Validasi untuk absen keluar
+    if (type === 'out') {
+        const [hours, minutes] = settings.workEndTime.split(':');
+        const workEnd = new Date();
+        workEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        
+        if (now < workEnd) {
+            return { 
+                success: false, 
+                message: `Belum waktunya absen keluar. Jam keluar: ${settings.workEndTime}` 
+            };
+        }
+    }
+    
+    // Save to attendance data
+    attendanceData.push(attendanceRecord);
+    localStorage.setItem('attendanceData', JSON.stringify(attendanceData));
+    
+    return { success: true, data: attendanceRecord };
+}
