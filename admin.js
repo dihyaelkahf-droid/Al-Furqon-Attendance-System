@@ -443,4 +443,372 @@ window.adminFunctions = {
     loadTopEmployees,
     loadRecentAttendance,
     editAttendance
+
 };
+// Setup navigation menu for admin
+function setupAdminNavigation() {
+    const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
+    const currentUser = auth.checkAuth();
+    
+    navItems.forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Remove active class from all items
+            navItems.forEach(nav => nav.classList.remove('active'));
+            
+            // Add active class to clicked item
+            this.classList.add('active');
+            
+            // Get target from data-target attribute
+            const target = this.getAttribute('data-target');
+            
+            // Load content based on target
+            loadAdminContent(target);
+        });
+    });
+}
+
+// Update loadAdminDashboard function
+function loadAdminDashboard() {
+    const currentUser = auth.checkAuth();
+    if (!currentUser) return;
+    
+    // Update user info
+    updateUserInfo(currentUser);
+    updateCurrentDate();
+    
+    // Setup navigation
+    setupAdminNavigation();
+    
+    // Load default content
+    loadAdminContent('dashboard');
+}
+
+// Update getAttendanceManagementHTML function
+function getAttendanceManagementHTML() {
+    return `
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-clipboard-check"></i> Data Absensi Semua Karyawan</h3>
+                <div class="filter-controls">
+                    <input type="date" id="attendanceDateFilter" class="form-control">
+                    <button class="btn btn-sm btn-primary" onclick="filterAttendanceByDate()">
+                        <i class="fas fa-filter"></i> Filter
+                    </button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="table" id="allAttendanceTable">
+                    <thead>
+                        <tr>
+                            <th>Nama</th>
+                            <th>Tanggal</th>
+                            <th>Masuk</th>
+                            <th>Keluar</th>
+                            <th>Status</th>
+                            <th>Catatan</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Data akan dimuat di sini -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+// Update getEmployeeManagementHTML function
+function getEmployeeManagementHTML() {
+    return `
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-users"></i> Data Karyawan</h3>
+                <button class="btn btn-primary" onclick="showAddEmployeeModal()">
+                    <i class="fas fa-plus"></i> Tambah Karyawan
+                </button>
+            </div>
+            <div class="employee-grid" id="employeeList">
+                <!-- Data karyawan akan dimuat di sini -->
+            </div>
+        </div>
+    `;
+}
+
+// Update getReportsHTML function
+function getReportsHTML() {
+    return `
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-chart-bar"></i> Laporan Absensi</h3>
+            </div>
+            <div class="report-controls">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Dari Tanggal</label>
+                        <input type="date" id="reportStartDate" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>Sampai Tanggal</label>
+                        <input type="date" id="reportEndDate" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-success" onclick="generateReport()">
+                        <i class="fas fa-file-excel"></i> Export ke Excel
+                    </button>
+                    <button class="btn btn-danger" onclick="generatePDFReport()">
+                        <i class="fas fa-file-pdf"></i> Export ke PDF
+                    </button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="table" id="reportTable">
+                    <thead>
+                        <tr>
+                            <th>Nama</th>
+                            <th>Total Hadir</th>
+                            <th>Terlambat</th>
+                            <th>Izin</th>
+                            <th>Sakit</th>
+                            <th>Cuti</th>
+                            <th>Alfa</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Data laporan akan dimuat di sini -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+// Update getSettingsHTML function
+function getSettingsHTML() {
+    return `
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-cog"></i> Pengaturan Sistem</h3>
+            </div>
+            <div class="settings-form">
+                <div class="form-group">
+                    <label>Jam Masuk Kerja</label>
+                    <input type="time" id="workStartTime" value="07:30" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Jam Keluar Kerja</label>
+                    <input type="time" id="workEndTime" value="15:30" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Toleransi Keterlambatan (menit)</label>
+                    <input type="number" id="lateTolerance" value="0" class="form-control">
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-primary" onclick="saveSettings()">
+                        <i class="fas fa-save"></i> Simpan Pengaturan
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Function to load attendance data
+function loadAttendanceData() {
+    const tableBody = document.querySelector('#allAttendanceTable tbody');
+    if (!tableBody) return;
+    
+    const attendanceData = auth.attendanceData;
+    const employees = auth.getAllEmployees();
+    
+    // Sort by date (newest first)
+    const sortedData = [...attendanceData].sort((a, b) => b.timestamp - a.timestamp);
+    
+    tableBody.innerHTML = sortedData.map(record => {
+        const employee = employees.find(e => e.id === record.userId);
+        const employeeName = employee ? employee.name : 'Unknown';
+        
+        let status = 'Hadir';
+        let statusClass = 'status-present';
+        
+        if (record.late) {
+            status = 'Terlambat';
+            statusClass = 'status-late';
+        } else if (record.type === 'leave') {
+            status = record.leaveType === 'permission' ? 'Izin' : 
+                    record.leaveType === 'sick' ? 'Sakit' : 'Cuti';
+            statusClass = 'status-info';
+        } else if (record.type === 'absence') {
+            status = 'Alfa';
+            statusClass = 'status-absence';
+        }
+        
+        return `
+            <tr>
+                <td>${employeeName}</td>
+                <td>${utils.formatDate(record.date)}</td>
+                <td>${record.type === 'in' ? record.time : '-'}</td>
+                <td>${record.type === 'out' ? record.time : '-'}</td>
+                <td><span class="status-badge ${statusClass}">${status}</span></td>
+                <td>${record.note || '-'}</td>
+                <td>
+                    <button class="btn btn-sm btn-secondary" onclick="editAttendance(${record.id})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteAttendance(${record.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Function to load employee data
+function loadEmployeeData() {
+    const employeeList = document.getElementById('employeeList');
+    if (!employeeList) return;
+    
+    const employees = auth.getAllEmployees();
+    
+    employeeList.innerHTML = employees.map(emp => `
+        <div class="employee-card">
+            <div class="employee-avatar">
+                ${emp.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+            </div>
+            <div class="employee-info">
+                <h4>${emp.name}</h4>
+                <p><i class="fas fa-user-circle"></i> ${emp.username}</p>
+                <p><i class="fas fa-id-card"></i> ID: ${emp.id}</p>
+                <div class="employee-actions">
+                    <button class="btn btn-sm btn-warning" onclick="editEmployee(${emp.id})">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteEmployee(${emp.id})">
+                        <i class="fas fa-trash"></i> Hapus
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Function to show add employee modal
+function showAddEmployeeModal() {
+    const modal = document.getElementById('addEmployeeModal');
+    const form = document.getElementById('addEmployeeForm');
+    
+    // Show modal
+    modal.classList.add('active');
+    
+    // Handle form submission
+    form.onsubmit = function(e) {
+        e.preventDefault();
+        
+        const name = document.getElementById('empName').value;
+        const username = document.getElementById('empUsername').value;
+        const password = document.getElementById('empPassword').value;
+        
+        if (!name || !username || !password) {
+            utils.showMessage(null, 'Semua field harus diisi', 'error');
+            return;
+        }
+        
+        // Check if username already exists
+        const employees = auth.getAllEmployees();
+        if (employees.some(emp => emp.username === username)) {
+            utils.showMessage(null, 'Username sudah digunakan', 'error');
+            return;
+        }
+        
+        // Add employee
+        const newEmployee = auth.addEmployee(name, username, password);
+        
+        // Close modal
+        modal.classList.remove('active');
+        
+        // Refresh employee list
+        loadEmployeeData();
+        
+        // Show success message
+        utils.showMessage(null, `Karyawan ${name} berhasil ditambahkan`, 'success');
+        
+        // Clear form
+        form.reset();
+    };
+    
+    // Close modal button
+    const closeBtn = modal.querySelector('.close-modal');
+    closeBtn.onclick = () => modal.classList.remove('active');
+}
+
+// Function to filter attendance by date
+function filterAttendanceByDate() {
+    const dateFilter = document.getElementById('attendanceDateFilter').value;
+    if (!dateFilter) {
+        loadAttendanceData();
+        return;
+    }
+    
+    const tableBody = document.querySelector('#allAttendanceTable tbody');
+    if (!tableBody) return;
+    
+    const attendanceData = auth.attendanceData;
+    const employees = auth.getAllEmployees();
+    
+    const filteredData = attendanceData.filter(record => record.date === dateFilter);
+    
+    tableBody.innerHTML = filteredData.map(record => {
+        const employee = employees.find(e => e.id === record.userId);
+        const employeeName = employee ? employee.name : 'Unknown';
+        
+        let status = 'Hadir';
+        let statusClass = 'status-present';
+        
+        if (record.late) {
+            status = 'Terlambat';
+            statusClass = 'status-late';
+        }
+        
+        return `
+            <tr>
+                <td>${employeeName}</td>
+                <td>${utils.formatDate(record.date)}</td>
+                <td>${record.type === 'in' ? record.time : '-'}</td>
+                <td>${record.type === 'out' ? record.time : '-'}</td>
+                <td><span class="status-badge ${statusClass}">${status}</span></td>
+                <td>${record.note || '-'}</td>
+                <td>
+                    <button class="btn btn-sm btn-secondary" onclick="editAttendance(${record.id})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Export functions
+window.adminFunctions = {
+    loadAdminDashboard,
+    loadAdminContent,
+    setupAdminNavigation,
+    updateDashboardStats,
+    loadTopEmployees,
+    loadRecentAttendance,
+    loadAttendanceData,
+    loadEmployeeData,
+    showAddEmployeeModal,
+    editAttendance,
+    filterAttendanceByDate
+};
+
+// Call loadAdminDashboard when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.location.pathname.includes('admin.html')) {
+        loadAdminDashboard();
+    }
+});
