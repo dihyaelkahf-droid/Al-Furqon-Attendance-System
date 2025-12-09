@@ -60,7 +60,7 @@
             
             <!-- Content Area -->
             <div id="contentArea">
-                <!-- Content will be loaded here -->
+                <!-- Content akan dimuat di sini -->
             </div>
         </main>
     </div>
@@ -88,42 +88,6 @@
         </div>
     </div>
     
-    <script src="auth.js"></script>
-    <!DOCTYPE html>
-<html lang="id">
-<head>
-    <!-- ... head content ... -->
-</head>
-<body>
-    <div class="dashboard-container">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <!-- ... sidebar content ... -->
-        </aside>
-        
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Top Bar -->
-            <div class="top-bar">
-                <!-- ... top bar content ... -->
-            </div>
-            
-            <!-- Content Area -->
-            <div id="contentArea">
-                <!-- Content akan dimuat di sini -->
-                <div class="loading-state">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <p>Memuat dashboard...</p>
-                </div>
-            </div>
-        </main>
-    </div>
-    
-    <!-- Modal -->
-    <div class="modal" id="noteModal">
-        <!-- ... modal content ... -->
-    </div>
-    
     <!-- Scripts -->
     <script src="auth.js"></script>
     <script src="script.js"></script>
@@ -131,7 +95,187 @@
     
     <!-- Initialize employee page -->
     <script>
-        // Pastikan halaman sudah load sepenuhnya
+        // Fungsi untuk update informasi user
+        function updateUserInfo(user) {
+            if (user && user.name) {
+                // Update nama user
+                const userNameElement = document.getElementById('userName');
+                if (userNameElement) {
+                    userNameElement.textContent = user.name;
+                }
+                
+                // Update avatar (ambil inisial dari nama)
+                const userAvatarElement = document.getElementById('userAvatar');
+                if (userAvatarElement && user.name.trim().length > 0) {
+                    userAvatarElement.textContent = user.name.trim().charAt(0).toUpperCase();
+                }
+                
+                // Update role
+                const userRoleElement = document.getElementById('userRole');
+                if (userRoleElement) {
+                    userRoleElement.textContent = user.role === 'admin' ? 'Administrator' : 'Karyawan';
+                }
+            }
+        }
+        
+        // Fungsi untuk update tanggal saat ini
+        function updateCurrentDate() {
+            const dateElement = document.getElementById('currentDate');
+            if (dateElement) {
+                const now = new Date();
+                const options = { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                };
+                dateElement.textContent = now.toLocaleDateString('id-ID', options);
+            }
+        }
+        
+        // Fungsi untuk load konten default
+        function loadDefaultContent(user) {
+            const contentArea = document.getElementById('contentArea');
+            if (contentArea) {
+                contentArea.innerHTML = `
+                    <div class="dashboard-section" id="attendanceContent">
+                        <div class="section-header">
+                            <h2><i class="fas fa-calendar-check"></i> Absen Hari Ini</h2>
+                        </div>
+                        <div class="attendance-card">
+                            <div class="attendance-status">
+                                <div class="status-info">
+                                    <h3>Status Absensi Hari Ini</h3>
+                                    <p id="currentStatus">Belum absen masuk</p>
+                                </div>
+                                <div class="attendance-actions">
+                                    <button class="btn btn-primary btn-lg" id="checkInBtn">
+                                        <i class="fas fa-sign-in-alt"></i>
+                                        <span>Absen Masuk</span>
+                                    </button>
+                                    <button class="btn btn-success btn-lg" id="checkOutBtn" disabled>
+                                        <i class="fas fa-sign-out-alt"></i>
+                                        <span>Absen Keluar</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="attendance-info">
+                                <div class="info-card">
+                                    <div class="info-icon" style="background-color: #e3f2fd;">
+                                        <i class="fas fa-clock" style="color: #1976d2;"></i>
+                                    </div>
+                                    <div class="info-content">
+                                        <h4>Jam Kerja</h4>
+                                        <p id="workHours">07:30 - 15:30</p>
+                                    </div>
+                                </div>
+                                <div class="info-card">
+                                    <div class="info-icon" style="background-color: #e8f5e9;">
+                                        <i class="fas fa-calendar" style="color: #388e3c;"></i>
+                                    </div>
+                                    <div class="info-content">
+                                        <h4>Hari Ini</h4>
+                                        <p id="todayDate">${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Setup event listeners untuk tombol absen
+                const checkInBtn = document.getElementById('checkInBtn');
+                const checkOutBtn = document.getElementById('checkOutBtn');
+                
+                if (checkInBtn) {
+                    checkInBtn.addEventListener('click', function() {
+                        if (typeof employeePage !== 'undefined' && 
+                            typeof employeePage.showNoteModal === 'function') {
+                            employeePage.showNoteModal('in');
+                        }
+                    });
+                }
+                
+                if (checkOutBtn) {
+                    checkOutBtn.addEventListener('click', function() {
+                        if (typeof employeePage !== 'undefined' && 
+                            typeof employeePage.showNoteModal === 'function') {
+                            employeePage.showNoteModal('out');
+                        }
+                    });
+                }
+            }
+        }
+        
+        // Fungsi untuk setup event listeners
+        function setupEventListeners() {
+            // Logout button
+            const logoutBtn = document.getElementById('logoutBtn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', function() {
+                    if (typeof auth !== 'undefined' && typeof auth.logout === 'function') {
+                        auth.logout();
+                    }
+                });
+            }
+            
+            // Navigation
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const target = this.getAttribute('data-target');
+                    
+                    // Update active state
+                    navItems.forEach(nav => nav.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Load content berdasarkan target
+                    if (typeof employeePage !== 'undefined' && 
+                        typeof employeePage.loadContent === 'function') {
+                        employeePage.loadContent(target);
+                    } else {
+                        // Fallback jika employeePage tidak ada
+                        const contentArea = document.getElementById('contentArea');
+                        if (contentArea) {
+                            contentArea.innerHTML = `
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h3>${target.charAt(0).toUpperCase() + target.slice(1)}</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <p>Fitur ${target} akan segera tersedia.</p>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
+                });
+            });
+            
+            // Close modal
+            const closeModalBtn = document.querySelector('.close-modal');
+            if (closeModalBtn) {
+                closeModalBtn.addEventListener('click', function() {
+                    const modal = document.getElementById('noteModal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+            
+            // Close modal ketika klik di luar
+            const modal = document.getElementById('noteModal');
+            if (modal) {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+        }
+        
+        // Main initialization
         document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM fully loaded, checking auth...');
             
@@ -144,35 +288,64 @@
                 updateUserInfo(user);
                 updateCurrentDate();
                 
-                // Load dashboard
-                if (typeof employeePage !== 'undefined' && 
-                    typeof employeePage.initializeEmployeePage === 'function') {
-                    employeePage.initializeEmployeePage();
-                } else {
-                    console.error('Employee page functions not loaded');
-                    // Load default content
-                    const contentArea = document.getElementById('contentArea');
-                    if (contentArea) {
-                        contentArea.innerHTML = `
-                            <div class="card">
-                                <div class="card-header">
-                                    <h3>Dashboard Karyawan</h3>
-                                </div>
-                                <div class="card-body">
-                                    <p>Selamat datang, ${user.name}!</p>
-                                    <p>Silakan pilih menu di sidebar untuk mulai.</p>
-                                </div>
-                            </div>
-                        `;
-                    }
-                }
+                // Load konten default
+                loadDefaultContent(user);
+                
+                // Setup event listeners
+                setupEventListeners();
+                
+                // Load pengaturan jam kerja
+                loadWorkSettings();
+            } else {
+                console.error('User not authenticated, redirecting to login...');
             }
         });
+        
+        // Fungsi untuk load pengaturan jam kerja
+        function loadWorkSettings() {
+            const workHoursElement = document.getElementById('workHours');
+            if (workHoursElement) {
+                const settings = JSON.parse(localStorage.getItem('workSettings')) || {
+                    workStartTime: '07:30',
+                    workEndTime: '15:30'
+                };
+                workHoursElement.textContent = `${settings.workStartTime} - ${settings.workEndTime}`;
+            }
+        }
+        
+        // Fungsi untuk update status absensi
+        function updateAttendanceStatus(userId) {
+            const currentStatusElement = document.getElementById('currentStatus');
+            const checkInBtn = document.getElementById('checkInBtn');
+            const checkOutBtn = document.getElementById('checkOutBtn');
+            
+            if (!currentStatusElement || !checkInBtn || !checkOutBtn) return;
+            
+            // Ambil data absensi hari ini
+            const today = new Date().toISOString().split('T')[0];
+            const userAttendance = auth.attendanceData.filter(a => 
+                a.userId === userId && a.date === today
+            );
+            
+            const hasCheckedIn = userAttendance.some(a => a.type === 'in');
+            const hasCheckedOut = userAttendance.some(a => a.type === 'out');
+            
+            if (hasCheckedOut) {
+                const outRecord = userAttendance.find(a => a.type === 'out');
+                currentStatusElement.textContent = `Sudah absen keluar pada ${outRecord.time}`;
+                checkInBtn.disabled = true;
+                checkOutBtn.disabled = true;
+            } else if (hasCheckedIn) {
+                const inRecord = userAttendance.find(a => a.type === 'in');
+                currentStatusElement.textContent = `Sudah absen masuk pada ${inRecord.time}${inRecord.late ? ' (Terlambat)' : ''}`;
+                checkInBtn.disabled = true;
+                checkOutBtn.disabled = false;
+            } else {
+                currentStatusElement.textContent = 'Belum absen masuk';
+                checkInBtn.disabled = false;
+                checkOutBtn.disabled = true;
+            }
+        }
     </script>
 </body>
-</html>
-    <script src="script.js"></script>
-    <script src="employee.js"></script>
-</body>
-
 </html>
