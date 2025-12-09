@@ -889,3 +889,105 @@ input[type="time"]::-webkit-calendar-picker-indicator {
     font-size: 28px;
     color: #4361ee;
 }
+
+
+/* Employee Dashboard Updates */
+.modal-info {
+    background: rgba(67, 97, 238, 0.1);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 4px solid #4361ee;
+}
+
+.modal-info p {
+    margin: 8px 0;
+    color: #333;
+}
+
+.modal-info i {
+    color: #4361ee;
+    margin-right: 8px;
+}
+
+.small-text {
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+}
+
+/* Attendance Info Styles */
+.attendance-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.info-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.info-item i {
+    font-size: 24px;
+    color: #4361ee;
+}
+
+.info-item h4 {
+    margin: 0 0 5px 0;
+    font-size: 14px;
+    color: #666;
+}
+
+.info-item p {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+    color: #333;
+}
+
+/* Work Time Display */
+#workTimeDisplay, #lateToleranceDisplay {
+    background: #f8f9fa;
+    font-weight: 500;
+}
+
+/* Holiday Message */
+.holiday-message {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.holiday-icon {
+    font-size: 60px;
+    color: #7209b7;
+    margin-bottom: 20px;
+}
+
+.holiday-message h2 {
+    color: #7209b7;
+    margin-bottom: 10px;
+}
+
+.holiday-message p {
+    color: #666;
+    margin-bottom: 5px;
+    font-size: 16px;
+}
+
+/* Info Text under buttons */
+.info-text {
+    font-size: 14px;
+    color: #666;
+    text-align: center;
+    margin-top: 10px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
