@@ -1,24 +1,3 @@
-// Inisialisasi pengaturan saat pertama kali load
-function initializeAllData() {
-    initializeData(); // Data karyawan dan absensi
-    
-    // Inisialisasi pengaturan jika belum ada
-    if (!localStorage.getItem('workSettings')) {
-        const defaultSettings = {
-            workStartTime: '07:30',
-            workEndTime: '15:30',
-            lateTolerance: 0,
-            workDays: [1, 2, 3, 4, 5, 6], // Senin-Sabtu
-            autoHoliday: true
-        };
-        localStorage.setItem('workSettings', JSON.stringify(defaultSettings));
-    }
-}
-
-// Panggil di DOMContentLoaded
-document.addEventListener('DOMContentLoaded', function() {
-    initializeAllData();
-});
 // Data karyawan awal
 const employees = [
     { id: 1, name: "Sutrisno", username: "sutris", password: "sutris123", role: "employee" },
@@ -49,8 +28,9 @@ const admin = [
 // Data absensi (akan disimpan di localStorage)
 let attendanceData = JSON.parse(localStorage.getItem('attendanceData')) || [];
 
-// Inisialisasi data karyawan di localStorage
-function initializeData() {
+// Inisialisasi semua data
+function initializeAllData() {
+    // Inisialisasi data karyawan dan admin
     if (!localStorage.getItem('employees')) {
         localStorage.setItem('employees', JSON.stringify(employees));
     }
@@ -62,7 +42,24 @@ function initializeData() {
     if (!localStorage.getItem('attendanceData')) {
         localStorage.setItem('attendanceData', JSON.stringify([]));
     }
+    
+    // Inisialisasi pengaturan jika belum ada
+    if (!localStorage.getItem('workSettings')) {
+        const defaultSettings = {
+            workStartTime: '07:30',
+            workEndTime: '15:30',
+            lateTolerance: 0,
+            workDays: [1, 2, 3, 4, 5, 6], // Senin-Sabtu (0=Minggu, 1=Senin, ...)
+            autoHoliday: true
+        };
+        localStorage.setItem('workSettings', JSON.stringify(defaultSettings));
+    }
 }
+
+// Panggil di DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function() {
+    initializeAllData();
+});
 
 // Fungsi login
 function login(username, password, isAdmin) {
@@ -101,9 +98,13 @@ function checkAuth() {
 
 // Fungsi untuk redirect berdasarkan role
 function redirectBasedOnRole(user) {
+    console.log('Redirecting user:', user.name, 'Role:', user.role);
+    
     if (user.role === 'admin') {
+        console.log('Redirecting to admin.html');
         window.location.href = 'admin.html';
     } else {
+        console.log('Redirecting to employee.html');
         window.location.href = 'employee.html';
     }
 }
@@ -130,26 +131,37 @@ function getAllEmployees() {
     return JSON.parse(localStorage.getItem('employees')) || employees;
 }
 
-// Fungsi untuk mencatat absensi
+// Fungsi untuk mencatat absensi (versi terbaru)
 function recordAttendance(userId, type, note = '') {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     const time = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
     
+    // Ambil pengaturan dari localStorage
+    const settings = JSON.parse(localStorage.getItem('workSettings')) || {
+        workStartTime: '07:30',
+        workEndTime: '15:30',
+        lateTolerance: 0,
+        workDays: [1, 2, 3, 4, 5, 6],
+        autoHoliday: true
+    };
+    
+    // Cek apakah hari ini hari kerja
+    const todayWeekday = now.getDay(); // 0=Minggu, 1=Senin, ...
+    const isWorkDay = settings.workDays.includes(todayWeekday);
+    const isAutoHoliday = settings.autoHoliday && todayWeekday === 0;
+    
+    if (!isWorkDay || isAutoHoliday) {
+        return { 
+            success: false, 
+            message: 'Hari ini adalah hari libur' 
+        };
+    }
+    
     // Cek apakah sudah ada absensi masuk hari ini
     const existingIndex = attendanceData.findIndex(a => 
         a.userId === userId && a.date === today && a.type === 'in'
     );
-    
-    const attendanceRecord = {
-        id: Date.now(),
-        userId: userId,
-        date: today,
-        time: time,
-        type: type, // 'in' atau 'out'
-        note: note,
-        timestamp: now.getTime()
-    };
     
     // Validasi: tidak bisa absen keluar sebelum absen masuk
     if (type === 'out' && existingIndex === -1) {
@@ -161,13 +173,44 @@ function recordAttendance(userId, type, note = '') {
         return { success: false, message: 'Anda sudah melakukan absensi masuk hari ini' };
     }
     
+    const attendanceRecord = {
+        id: Date.now(),
+        userId: userId,
+        date: today,
+        time: time,
+        type: type, // 'in' atau 'out'
+        note: note,
+        timestamp: now.getTime()
+    };
+    
     // Cek keterlambatan untuk absen masuk
     if (type === 'in') {
+        const [hours, minutes] = settings.workStartTime.split(':');
         const workStart = new Date();
-        workStart.setHours(7, 30, 0, 0);
-        if (now > workStart) {
+        workStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        
+        // Apply late tolerance
+        const toleranceMs = settings.lateTolerance * 60 * 1000;
+        const adjustedStart = new Date(workStart.getTime() + toleranceMs);
+        
+        if (now > adjustedStart) {
             attendanceRecord.late = true;
             attendanceRecord.lateMinutes = Math.floor((now - workStart) / (1000 * 60));
+            attendanceRecord.lateMinutes = Math.max(0, attendanceRecord.lateMinutes - settings.lateTolerance);
+        }
+    }
+    
+    // Validasi untuk absen keluar berdasarkan pengaturan
+    if (type === 'out') {
+        const [hours, minutes] = settings.workEndTime.split(':');
+        const workEnd = new Date();
+        workEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        
+        if (now < workEnd) {
+            return { 
+                success: false, 
+                message: `Belum waktunya absen keluar. Jam keluar: ${settings.workEndTime}` 
+            };
         }
     }
     
@@ -226,9 +269,9 @@ function getAttendanceStats(userId) {
     return stats;
 }
 
-// Export fungsi
+// Export fungsi ke window object
 window.auth = {
-    initializeData,
+    initializeData: initializeAllData,
     login,
     logout,
     checkAuth,
@@ -239,108 +282,4 @@ window.auth = {
     getAttendanceHistory,
     getAttendanceStats,
     attendanceData
-
 };
-
-
-// Update fungsi recordAttendance untuk menggunakan pengaturan
-function recordAttendance(userId, type, note = '') {
-    const now = new Date();
-    
-    // Ambil pengaturan dari localStorage
-    const settings = JSON.parse(localStorage.getItem('workSettings')) || {
-        workStartTime: '07:30',
-        workEndTime: '15:30',
-        lateTolerance: 0,
-        workDays: [1, 2, 3, 4, 5, 6],
-        autoHoliday: true
-    };
-    
-    // Cek apakah hari ini hari kerja
-    const today = now.getDay();
-    const isWorkDay = settings.workDays.includes(today);
-    const isAutoHoliday = settings.autoHoliday && today === 0;
-    
-    if (!isWorkDay || isAutoHoliday) {
-        return { 
-            success: false, 
-            message: 'Hari ini adalah hari libur' 
-        };
-    }
-    
-    const attendanceRecord = {
-        id: Date.now(),
-        userId: userId,
-        date: now.toISOString().split('T')[0],
-        time: now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-        type: type,
-        note: note,
-        timestamp: now.getTime()
-    };
-    
-    // Validasi untuk absen masuk
-    if (type === 'in') {
-        const [hours, minutes] = settings.workStartTime.split(':');
-        const workStart = new Date();
-        workStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        
-        // Apply late tolerance
-        const toleranceMs = settings.lateTolerance * 60 * 1000;
-        const adjustedStart = new Date(workStart.getTime() + toleranceMs);
-        
-        if (now > adjustedStart) {
-            attendanceRecord.late = true;
-            attendanceRecord.lateMinutes = Math.floor((now - workStart) / (1000 * 60));
-            attendanceRecord.lateMinutes = Math.max(0, attendanceRecord.lateMinutes - settings.lateTolerance);
-        }
-    }
-    
-    // Validasi untuk absen keluar
-    if (type === 'out') {
-        const [hours, minutes] = settings.workEndTime.split(':');
-        const workEnd = new Date();
-        workEnd.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        
-        if (now < workEnd) {
-            return { 
-                success: false, 
-                message: `Belum waktunya absen keluar. Jam keluar: ${settings.workEndTime}` 
-            };
-        }
-    }
-    
-    // Save to attendance data
-    attendanceData.push(attendanceRecord);
-    localStorage.setItem('attendanceData', JSON.stringify(attendanceData));
-    
-    return { success: true, data: attendanceRecord };
-}
-
-
-// Update fungsi redirectBasedOnRole
-function redirectBasedOnRole(user) {
-    console.log('Redirecting user:', user.name, 'Role:', user.role);
-    
-    if (user.role === 'admin') {
-        console.log('Redirecting to admin.html');
-        window.location.href = 'admin.html';
-    } else {
-        console.log('Redirecting to employee.html');
-        window.location.href = 'employee.html';
-    }
-}
-
-// Update fungsi checkAuth dengan logging
-function checkAuth() {
-    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
-    
-    console.log('checkAuth called, user found:', currentUser ? currentUser.name : 'none');
-    
-    if (!currentUser) {
-        console.log('No user found, redirecting to login');
-        window.location.href = 'index.html';
-        return null;
-    }
-    
-    return currentUser;
-}
