@@ -1,3 +1,24 @@
+// Inisialisasi pengaturan saat pertama kali load
+function initializeAllData() {
+    initializeData(); // Data karyawan dan absensi
+    
+    // Inisialisasi pengaturan jika belum ada
+    if (!localStorage.getItem('workSettings')) {
+        const defaultSettings = {
+            workStartTime: '07:30',
+            workEndTime: '15:30',
+            lateTolerance: 0,
+            workDays: [1, 2, 3, 4, 5, 6], // Senin-Sabtu
+            autoHoliday: true
+        };
+        localStorage.setItem('workSettings', JSON.stringify(defaultSettings));
+    }
+}
+
+// Panggil di DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function() {
+    initializeAllData();
+});
 // Data karyawan awal
 const employees = [
     { id: 1, name: "Sutrisno", username: "sutris", password: "sutris123", role: "employee" },
@@ -218,4 +239,5 @@ window.auth = {
     getAttendanceHistory,
     getAttendanceStats,
     attendanceData
+
 };
