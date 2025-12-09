@@ -830,3 +830,62 @@ input[type="time"]::-webkit-calendar-picker-indicator {
         text-align: center;
     }
 }
+
+
+/* Settings Message Styles */
+#settingsMessage {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 8px;
+    font-weight: 500;
+}
+
+#settingsMessage.success {
+    background: rgba(76, 201, 240, 0.2);
+    color: #4cc9f0;
+    border: 1px solid rgba(76, 201, 240, 0.3);
+}
+
+#settingsMessage.error {
+    background: rgba(247, 37, 133, 0.2);
+    color: #f72585;
+    border: 1px solid rgba(247, 37, 133, 0.3);
+}
+
+#settingsMessage.warning {
+    background: rgba(248, 150, 30, 0.2);
+    color: #f8961e;
+    border: 1px solid rgba(248, 150, 30, 0.3);
+}
+
+/* Button Hover Effects */
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(67, 97, 238, 0.3);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+/* Form Validation Styles */
+.form-control:invalid {
+    border-color: #f72585;
+}
+
+.form-control:valid {
+    border-color: #4cc9f0;
+}
+
+/* Info Item Styles */
+.info-item p {
+    margin: 0;
+    color: #333;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.info-item i {
+    font-size: 28px;
+    color: #4361ee;
+}
