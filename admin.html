@@ -7,6 +7,11 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Library untuk Ekspor Excel dan PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
     <div class="dashboard-container">
@@ -69,7 +74,9 @@
         </main>
     </div>
     
-    <!-- Modals -->
+    <!-- HANYA SATU SET MODAL - HAPUS YANG DUPLIKAT -->
+    
+    <!-- Modal untuk tambah karyawan -->
     <div class="modal" id="addEmployeeModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -100,6 +107,7 @@
         </div>
     </div>
     
+    <!-- Modal untuk edit absensi -->
     <div class="modal" id="editAttendanceModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -108,60 +116,51 @@
             </div>
             <div class="modal-body">
                 <form id="editAttendanceForm">
-                    <!-- Form will be populated dynamically -->
+                    <!-- Form akan diisi secara dinamis -->
                 </form>
             </div>
         </div>
     </div>
     
+    <!-- Scripts HARUS DI AKHIR BODY -->
     <script src="auth.js"></script>
     <script src="script.js"></script>
     <script src="admin.js"></script>
-    <!-- Modal untuk tambah karyawan -->
-<div class="modal" id="addEmployeeModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3>Tambah Karyawan Baru</h3>
-            <button class="close-modal">&times;</button>
-        </div>
-        <div class="modal-body">
-            <form id="addEmployeeForm">
-                <div class="form-group">
-                    <label for="empName">Nama Lengkap</label>
-                    <input type="text" id="empName" placeholder="Masukkan nama lengkap" required>
-                </div>
-                <div class="form-group">
-                    <label for="empUsername">Username</label>
-                    <input type="text" id="empUsername" placeholder="Masukkan username" required>
-                </div>
-                <div class="form-group">
-                    <label for="empPassword">Password</label>
-                    <input type="password" id="empPassword" placeholder="Masukkan password" required>
-                </div>
-                <div class="form-group">
-                    <button type="submit" class="btn btn-primary btn-block">
-                        <i class="fas fa-plus"></i> Tambah Karyawan
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal untuk edit absensi -->
-<div class="modal" id="editAttendanceModal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3>Edit Absensi</h3>
-            <button class="close-modal">&times;</button>
-        </div>
-        <div class="modal-body">
-            <form id="editAttendanceForm">
-                <!-- Form akan diisi secara dinamis -->
-            </form>
-        </div>
-    </div>
-</div>
+    
+    <!-- Initialize admin dashboard -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Admin page loaded');
+            
+            // Cek authentication
+            const user = auth.checkAuth();
+            if (user) {
+                console.log('Admin authenticated:', user.name);
+                
+                // Initialize dashboard jika fungsi tersedia
+                if (typeof adminFunctions !== 'undefined' && 
+                    typeof adminFunctions.loadAdminDashboard === 'function') {
+                    adminFunctions.loadAdminDashboard();
+                } else {
+                    console.error('Admin functions not loaded');
+                    // Fallback
+                    const contentArea = document.getElementById('contentArea');
+                    if (contentArea) {
+                        contentArea.innerHTML = `
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3>Dashboard Admin</h3>
+                                </div>
+                                <div class="card-body">
+                                    <p>Selamat datang, Administrator!</p>
+                                    <p>Silakan pilih menu di sidebar.</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+            }
+        });
+    </script>
 </body>
-
 </html>
