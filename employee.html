@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Karyawan - Sistem Absensi</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fas fa-fingerprint"></i> Absensi</h2>
+                <p>Karyawan Panel</p>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-target="attendance">
+                    <i class="fas fa-calendar-check"></i>
+                    <span>Absen Hari Ini</span>
+                </a>
+                <a href="#" class="nav-item" data-target="history">
+                    <i class="fas fa-history"></i>
+                    <span>Riwayat Absensi</span>
+                </a>
+                <a href="#" class="nav-item" data-target="profile">
+                    <i class="fas fa-user"></i>
+                    <span>Profil Saya</span>
+                </a>
+                <a href="#" class="nav-item" data-target="ranking">
+                    <i class="fas fa-trophy"></i>
+                    <span>Ranking Karyawan</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <button class="btn btn-secondary logout-btn" id="logoutBtn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Keluar</span>
+                </button>
+            </div>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Bar -->
+            <div class="top-bar">
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">S</div>
+                    <div>
+                        <h3 id="userName">Sutrisno</h3>
+                        <p id="userRole">Karyawan</p>
+                    </div>
+                </div>
+                <div class="current-date" id="currentDate">Senin, 1 Januari 2024</div>
+            </div>
+            
+            <!-- Content Area -->
+            <div id="contentArea">
+                <!-- Content will be loaded here -->
+            </div>
+        </main>
+    </div>
+    
+    <!-- Modal untuk catatan absensi -->
+    <div class="modal" id="noteModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="noteModalTitle">Tambah Catatan</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="noteForm">
+                    <div class="form-group">
+                        <label for="noteText">Catatan (Opsional)</label>
+                        <textarea id="noteText" rows="4" placeholder="Masukkan catatan jika diperlukan..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-primary btn-block" id="noteSubmitBtn">
+                            <i class="fas fa-check"></i> Konfirmasi
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script src="auth.js"></script>
+    <script src="script.js"></script>
+    <script src="employee.js"></script>
+</body>
+</html>
