@@ -89,7 +89,90 @@
     </div>
     
     <script src="auth.js"></script>
+    <!DOCTYPE html>
+<html lang="id">
+<head>
+    <!-- ... head content ... -->
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <!-- ... sidebar content ... -->
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Bar -->
+            <div class="top-bar">
+                <!-- ... top bar content ... -->
+            </div>
+            
+            <!-- Content Area -->
+            <div id="contentArea">
+                <!-- Content akan dimuat di sini -->
+                <div class="loading-state">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Memuat dashboard...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Modal -->
+    <div class="modal" id="noteModal">
+        <!-- ... modal content ... -->
+    </div>
+    
+    <!-- Scripts -->
+    <script src="auth.js"></script>
+    <script src="script.js"></script>
+    <script src="employee.js"></script>
+    
+    <!-- Initialize employee page -->
+    <script>
+        // Pastikan halaman sudah load sepenuhnya
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM fully loaded, checking auth...');
+            
+            // Cek apakah user sudah login
+            const user = auth.checkAuth();
+            if (user) {
+                console.log('User authenticated:', user.name);
+                
+                // Update user info
+                updateUserInfo(user);
+                updateCurrentDate();
+                
+                // Load dashboard
+                if (typeof employeePage !== 'undefined' && 
+                    typeof employeePage.initializeEmployeePage === 'function') {
+                    employeePage.initializeEmployeePage();
+                } else {
+                    console.error('Employee page functions not loaded');
+                    // Load default content
+                    const contentArea = document.getElementById('contentArea');
+                    if (contentArea) {
+                        contentArea.innerHTML = `
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3>Dashboard Karyawan</h3>
+                                </div>
+                                <div class="card-body">
+                                    <p>Selamat datang, ${user.name}!</p>
+                                    <p>Silakan pilih menu di sidebar untuk mulai.</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
     <script src="script.js"></script>
     <script src="employee.js"></script>
 </body>
+
 </html>
