@@ -222,4 +222,33 @@ window.utils = {
     getDayName,
     isSunday,
     updateCurrentDate
+
 };
+// Inisialisasi saat halaman dimuat
+document.addEventListener('DOMContentLoaded', function() {
+    // Inisialisasi data
+    auth.initializeData();
+    
+    // Inisialisasi pengaturan
+    if (typeof window.workSettings !== 'undefined') {
+        window.workSettings.initializeSettings();
+    }
+    
+    // Setup untuk halaman login
+    if (document.getElementById('loginForm')) {
+        setupLoginPage();
+    }
+    
+    // Setup untuk halaman admin/employee
+    if (document.getElementById('logoutBtn')) {
+        setupDashboard();
+    }
+    
+    // Setup khusus untuk halaman admin
+    if (window.location.pathname.includes('admin.html')) {
+        // Pastikan fungsi admin tersedia
+        if (typeof adminFunctions !== 'undefined') {
+            adminFunctions.loadAdminDashboard();
+        }
+    }
+});
