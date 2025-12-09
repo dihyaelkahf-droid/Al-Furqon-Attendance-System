@@ -315,3 +315,32 @@ function recordAttendance(userId, type, note = '') {
     
     return { success: true, data: attendanceRecord };
 }
+
+
+// Update fungsi redirectBasedOnRole
+function redirectBasedOnRole(user) {
+    console.log('Redirecting user:', user.name, 'Role:', user.role);
+    
+    if (user.role === 'admin') {
+        console.log('Redirecting to admin.html');
+        window.location.href = 'admin.html';
+    } else {
+        console.log('Redirecting to employee.html');
+        window.location.href = 'employee.html';
+    }
+}
+
+// Update fungsi checkAuth dengan logging
+function checkAuth() {
+    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+    
+    console.log('checkAuth called, user found:', currentUser ? currentUser.name : 'none');
+    
+    if (!currentUser) {
+        console.log('No user found, redirecting to login');
+        window.location.href = 'index.html';
+        return null;
+    }
+    
+    return currentUser;
+}
