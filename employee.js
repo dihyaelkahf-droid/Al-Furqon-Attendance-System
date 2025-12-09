@@ -1447,3 +1447,41 @@ function loadEmployeeDashboard() {
         }
     }, 30000);
 }
+
+
+// ====== INITIALIZE EMPLOYEE DASHBOARD ======
+
+// Pastikan fungsi ini dipanggil saat halaman employee.html load
+function initializeEmployeePage() {
+    const currentUser = auth.checkAuth();
+    if (!currentUser) return;
+    
+    console.log('Initializing employee dashboard for:', currentUser.name);
+    
+    // Setup dashboard
+    setupDashboard();
+    
+    // Load employee dashboard
+    if (typeof loadEmployeeDashboard === 'function') {
+        loadEmployeeDashboard();
+    } else {
+        console.error('loadEmployeeDashboard function not found!');
+        // Fallback: load attendance form directly
+        loadEmployeeContent('attendance');
+    }
+}
+
+// Event listener untuk halaman employee
+if (window.location.pathname.includes('employee.html')) {
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Employee page loaded, initializing...');
+        initializeEmployeePage();
+    });
+}
+
+// Export function untuk testing
+window.employeePage = {
+    initializeEmployeePage,
+    loadEmployeeDashboard,
+    loadEmployeeContent
+};
